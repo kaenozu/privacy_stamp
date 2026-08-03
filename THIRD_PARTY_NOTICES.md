@@ -1,14 +1,34 @@
 # Third-party notices
 
-This MVP uses Flutter packages distributed under their respective licenses:
+This file lists the direct dependencies declared in `pubspec.yaml`. The lockfile
+also contains transitive packages; a distribution build must generate and ship
+the applicable notices and full license texts for that complete graph.
 
-- Flutter SDK and flutter_lints: BSD-3-Clause
-- file_picker: MIT
-- image: MIT
-- image_picker: BSD-3-Clause
-- shared_preferences: BSD-3-Clause
-- uuid: MIT
+## Direct runtime dependencies
 
-Before distributing an Android or Web release, include the full license texts and
-audit any local MediaPipe, Tesseract.js, ZXing, or ML Kit assets added by the
-platform adapters. Those detector assets are intentionally not bundled yet.
+| Dependency | License |
+| --- | --- |
+| Flutter SDK | BSD-3-Clause |
+| file_picker | MIT |
+| image | MIT |
+| image_picker | BSD-3-Clause |
+| shared_preferences | BSD-3-Clause |
+| uuid | MIT |
+| cupertino_icons | MIT |
+
+## Direct development dependencies
+
+| Dependency | License |
+| --- | --- |
+| flutter_test | BSD-3-Clause (Flutter SDK) |
+| flutter_lints | BSD-3-Clause |
+
+The detector assets named in the architecture contracts are intentionally not
+bundled: Android ML Kit, Web MediaPipe, Tesseract.js, and ZXing have no current
+runtime integration or corresponding asset notice here. If they are added,
+record their licenses, versions, redistribution terms, and asset contents
+before shipping.
+
+Before an Android or Web production release, audit the complete `pubspec.lock`
+dependency graph, platform SDK notices, generated artifacts, fonts/icons, and
+any detector assets. This document is not a substitute for that release audit.
