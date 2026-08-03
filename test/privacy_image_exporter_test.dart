@@ -66,34 +66,25 @@ void main() {
     expect(decoded.getPixel(1, 0).a, 96);
   });
 
-  test(
-    'clips a partially outside stamp without changing non-target pixels',
-    () {
-      final output = exporter.encode(solidPng(4, 4), [
+  test('rejects a partially outside stamp instead of silently clipping', () {
+    expect(
+      () => exporter.encode(solidPng(4, 4), [
         Stamp(id: 'corner', rect: const NormalizedRect(-.25, -.25, .5, .5)),
-      ]);
-      final decoded = img.decodePng(output)!;
+      ]),
+      throwsA(isA<FormatException>()),
+    );
+  });
 
-      expect(decoded.getPixel(0, 0).r, 0);
-      expect(decoded.getPixel(1, 1).r, 0);
-      expect(decoded.getPixel(2, 2).r, 40);
-      expect(decoded.getPixel(3, 3).r, 40);
-    },
-  );
-
-  test('ignores zero-area, negative-area, and fully outside stamps', () {
-    final source = solidPng(4, 4);
-    final output = exporter.encode(source, [
+  test('rejects zero-area, negative-area, and fully outside stamps', () {
+    for (final stamp in <Stamp>[
       Stamp(id: 'zero', rect: const NormalizedRect(.2, .2, 0, .4)),
       Stamp(id: 'negative', rect: const NormalizedRect(.2, .2, -.1, .4)),
       Stamp(id: 'outside', rect: const NormalizedRect(1.1, 1.1, .2, .2)),
-    ]);
-    final decoded = img.decodePng(output)!;
-
-    for (final pixel in decoded) {
-      expect(pixel.r, 40);
-      expect(pixel.g, 80);
-      expect(pixel.b, 120);
+    ]) {
+      expect(
+        () => exporter.encode(solidPng(4, 4), [stamp]),
+        throwsA(isA<FormatException>()),
+      );
     }
   });
 

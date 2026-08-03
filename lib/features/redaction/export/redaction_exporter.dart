@@ -24,6 +24,12 @@ class RedactionExporter {
       throw const FormatException('回転後の画像サイズが0pxです');
     }
 
+    // The output is a fresh privacy boundary. Do not carry EXIF, ICC, or
+    // textual/XMP metadata from the decoded input into the PNG encoder.
+    oriented.exif = img.ExifData();
+    oriented.iccProfile = null;
+    oriented.textData = null;
+
     // The exporter operates in the same physical, orientation-baked image
     // space as the editor's normalized coordinates.
     final layout = ImageDisplayLayout.contain(
