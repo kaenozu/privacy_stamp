@@ -10,10 +10,11 @@ This document records the repository state, not a production readiness claim.
   OCR-region, and stamp contract.
 - Pure Dart rules for email, Japanese/international phone, postal-code review
   candidates, Luhn-valid card candidates, coordinates, labelled values, and an
-  all-OCR-region strong mode contract.
+  all-OCR-region contract for future detector adapters.
 - PNG re-encoding with EXIF orientation baked and opaque rectangular masks.
-- Manual stamp addition and long-press removal.
-- Separate-file export and locally persisted export count.
+- Manual stamp addition, selection, move, resize, and visible-button removal.
+- Separate-file export and locally persisted export history count without a
+  billing or free-tier lockout.
 - Unit/widget tests for the rule engine, opaque mask export, and local-only
   landing screen.
 - GitHub Actions quality gates for format, analyze, test, Web build, Android
@@ -24,8 +25,9 @@ This document records the repository state, not a production readiness claim.
 - Android ML Kit face, OCR, and barcode adapters.
 - Web MediaPipe, Tesseract.js, and ZXing local bundled adapters.
 - Automatic detector execution: `DetectionService._localTextDetector` currently
-  returns no recognized text regions.
-- Automatic face/barcode/OCR coverage, exported-pixel reinspection, or a
+  returns no recognized text regions, and the UI explicitly says automatic
+  detection is not implemented.
+- Automatic face/barcode/OCR coverage, or a
   guarantee that all sensitive content is hidden.
 - Android share-intent receiver and system share-out.
 - Google Play Billing purchase/restore, product ID, entitlement state, or an
@@ -46,8 +48,9 @@ third-party dependency compromise, or unreviewed metadata and permission
 behavior.
 
 Manual review remains mandatory while automatic detectors are absent. The
-exporter creates a separate PNG and does not overwrite the selected source, but
-there is no independent output reinspection or network-egress test yet.
+exporter creates a separate PNG and does not overwrite the selected source;
+tests re-decode output pixels and metadata. Browser DevTools egress inspection
+remains unverified.
 
 ## Verification status
 
@@ -59,7 +62,7 @@ there is no independent output reinspection or network-egress test yet.
 | Web artifact | `flutter build web --release` | CI gate; browser use unverified |
 | Android debug artifact | `flutter build apk --debug` | CI gate; device use unverified |
 | Android release smoke | `flutter build apk --release` | CI gate when toolchain permits; not distributable |
-| Privacy behavior | Rules/exporter tests only | No egress, device, browser, or reinspection test |
+| Privacy behavior | 33 tests including pixel/metadata reinspection | Browser DevTools egress and full device edit/save flow unverified |
 
 The workflow records command exit codes, test and skip counts, analyzer
 warning/info lines, failure commands, logs, and available build artifacts in the
@@ -71,9 +74,9 @@ GitHub Actions summary and artifact bundle.
   application ID.
 - Release signing is still the Flutter template's debug signing configuration;
   no production keystore or release credential is configured.
-- Real Android device interaction, merged manifest/permission audit, Web Chrome
-  interaction, drag/drop, browser storage, deployed-host behavior, and network
-  panel audit are unverified.
+- Full Android image edit/save interaction, Web Chrome DOM/drag/drop/browser
+  storage, deployed-host behavior, and browser network-panel audit are
+  unverified. Emulator launch and image-picker cancellation were exercised.
 - Full direct and transitive third-party license texts are not bundled for a
   distribution release.
 - Production work also needs detector adapters, review/coverage UX, exported

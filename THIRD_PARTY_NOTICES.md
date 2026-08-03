@@ -11,10 +11,7 @@ the applicable notices and full license texts for that complete graph.
 | Flutter SDK | BSD-3-Clause |
 | file_picker | MIT |
 | image | MIT |
-| image_picker | BSD-3-Clause |
 | shared_preferences | BSD-3-Clause |
-| uuid | MIT |
-| cupertino_icons | MIT |
 
 ## Direct development dependencies
 

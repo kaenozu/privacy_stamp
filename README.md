@@ -10,7 +10,7 @@ The current flow is intentionally small:
 
 1. Choose one JPEG, PNG, or WebP image with `file_picker`.
 2. Preview the image locally and add a manual black or white stamp.
-3. Long-press a stamp to remove it.
+3. Select a manual stamp and move, resize, or remove it with visible controls.
 4. Export a separate PNG with opaque rectangular masks and baked orientation.
 
 The exporter does not overwrite the selected source file. Export counts are
@@ -46,9 +46,10 @@ when the user reviews and places masks. It does not protect against:
   current release build uses the debug signing configuration.
 
 The source image is kept separate from the exported PNG by the current export
-API, but no independent pixel reinspection, network egress test, or full merged
-Android manifest audit has been completed. Do not describe the MVP as providing
-guaranteed redaction until those checks and the missing detectors are addressed.
+API. Tests re-decode exported PNGs and inspect mask/non-mask pixels and
+metadata. A release merged-manifest audit found no INTERNET or external-storage
+permission. Browser DevTools network inspection and deployed-host behavior are
+still unverified, so do not describe the MVP as providing guaranteed redaction.
 
 ## Android and Web status
 
@@ -59,9 +60,8 @@ guaranteed redaction until those checks and the missing detectors are addressed.
   Tesseract.js, and ZXing adapters are not bundled. Chrome drag/drop, browser
   storage behavior, network-panel inspection, and deployed-host behavior are
   not verified.
-- The debug Android manifest includes `INTERNET` for Flutter development. The
-  effective merged manifest and release permission posture still require an
-  explicit audit.
+- The release merged manifest has no `INTERNET`, `READ_EXTERNAL_STORAGE`, or
+  `WRITE_EXTERNAL_STORAGE` permission. Re-audit if platform plugins change.
 
 See [MVP_STATUS.md](MVP_STATUS.md) for the implementation and release checklist.
 
@@ -78,9 +78,10 @@ flutter build web --release
 flutter build apk --debug
 ```
 
-The tests cover the sensitive-value rules and opaque PNG masking. They are not
-privacy proof: there is no real device test, browser interaction test, network
-egress test, detector integration test, or exported-pixel reinspection test yet.
+The tests cover sensitive-value rules, coordinate mapping, opaque PNG masking,
+metadata stripping, controller races, and exported-pixel reinspection. They are
+not privacy proof: full image editing on a real device, browser interaction,
+browser network-panel inspection, and detector integration remain unverified.
 
 The GitHub Actions workflow runs on every pull request and push to `main`:
 
@@ -97,9 +98,9 @@ must not be distributed as a production APK.
 
 ## Direct dependencies
 
-Runtime dependencies are `file_picker`, `image`, `image_picker`,
-`shared_preferences`, `uuid`, and `cupertino_icons`, in addition to the Flutter
-SDK. Development dependencies are `flutter_test` and `flutter_lints`. The list
+Runtime dependencies are `file_picker`, `image`, and `shared_preferences`, in
+addition to the Flutter SDK. Development dependencies are `flutter_test` and
+`flutter_lints`. The list
 is kept aligned with the direct entries in `pubspec.yaml`; transitive packages
 remain governed by `pubspec.lock`. License notes are in
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
