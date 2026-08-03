@@ -9,7 +9,7 @@ it, while keeping the image-processing path local to the app or browser.
 The current flow is intentionally small:
 
 1. Choose one JPEG, PNG, or WebP image with `file_picker`.
-2. Preview the image locally and add a manual black or white stamp.
+2. Preview the image locally and add a manual black stamp.
 3. Select a manual stamp and move, resize, or remove it with visible controls.
 4. Export a separate PNG with opaque rectangular masks and baked orientation.
 
