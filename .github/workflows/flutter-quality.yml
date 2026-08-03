@@ -74,9 +74,32 @@ jobs:
           warnings=$(grep -Eic '(^|[[:space:]])(warning|info)([[:space:]:]|$)' .ci-logs/analyze.log 2>/dev/null || true)
 
           if command -v jq >/dev/null 2>&1; then
-            test_count=$(jq -r 'select(.type == "testStart" and .test.id != null) | .test.id' .ci-logs/test.log 2>/dev/null | sort -u | wc -l | tr -d ' ')
-            skipped_count=$(jq -r 'select(.type == "testDone" and .result == "skipped") | .testID' .ci-logs/test.log 2>/dev/null | wc -l | tr -d ' ')
-            failed_test_count=$(jq -r 'select(.type == "error" or (.type == "testDone" and .result == "failure"))' .ci-logs/test.log 2>/dev/null | wc -l | tr -d ' ')
+            # `flutter test --reporter json` can emit dependency-resolution text
+            # before the JSON protocol starts. Normalize the log into valid JSONL
+            # first so reporting cannot turn otherwise-passing gates red.
+            jq -Rrc 'fromjson? // empty' .ci-logs/test.log > .ci-logs/test-events.jsonl || true
+
+            test_count=$(
+              jq -r 'select(.type == "testDone" and (.hidden // false) == false) | .testID' \
+                .ci-logs/test-events.jsonl 2>/dev/null \
+                | sort -u \
+                | wc -l \
+                | tr -d ' '
+            ) || test_count="unavailable"
+            skipped_count=$(
+              jq -r 'select(.type == "testDone" and (.hidden // false) == false and ((.skipped // false) == true or .result == "skipped")) | .testID' \
+                .ci-logs/test-events.jsonl 2>/dev/null \
+                | sort -u \
+                | wc -l \
+                | tr -d ' '
+            ) || skipped_count="unavailable"
+            failed_test_count=$(
+              jq -r 'select(.type == "testDone" and (.hidden // false) == false and .result == "failure") | .testID' \
+                .ci-logs/test-events.jsonl 2>/dev/null \
+                | sort -u \
+                | wc -l \
+                | tr -d ' '
+            ) || failed_test_count="unavailable"
           else
             test_count="unavailable (jq not installed)"
             skipped_count="unavailable (jq not installed)"
@@ -90,9 +113,9 @@ jobs:
             echo "| --- | ---: |"
             echo "| Gates passed | ${passed} |"
             echo "| Gates failed | ${failed} |"
-            echo "| Tests collected | ${test_count} |"
+            echo "| Tests completed | ${test_count} |"
             echo "| Tests skipped | ${skipped_count} |"
-            echo "| Test failures reported | ${failed_test_count} |"
+            echo "| Tests failed | ${failed_test_count} |"
             echo "| Analyzer warning/info lines | ${warnings} |"
             echo
             echo "Artifacts: CI logs, Web build, debug APK, and a release smoke APK are uploaded when available."
