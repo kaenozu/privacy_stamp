@@ -1,4 +1,6 @@
-import 'dart:ui';
+import 'redaction_coordinates.dart';
+
+export 'redaction_coordinates.dart';
 
 enum DetectionKind {
   face,
@@ -14,28 +16,6 @@ enum DetectionKind {
 }
 
 enum Certainty { automatic, review }
-
-class NormalizedRect {
-  const NormalizedRect(this.left, this.top, this.width, this.height);
-  final double left;
-  final double top;
-  final double width;
-  final double height;
-
-  Rect get rect => Rect.fromLTWH(left, top, width, height);
-  NormalizedRect clamp() => NormalizedRect(
-    left.clamp(0, 1),
-    top.clamp(0, 1),
-    width.clamp(0, 1 - left.clamp(0, 1)),
-    height.clamp(0, 1 - top.clamp(0, 1)),
-  );
-  NormalizedRect padded(double horizontal, double vertical) => NormalizedRect(
-    left - horizontal,
-    top - vertical,
-    width + horizontal * 2,
-    height + vertical * 2,
-  ).clamp();
-}
 
 class DetectionRegion {
   DetectionRegion({
