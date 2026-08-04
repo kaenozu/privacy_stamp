@@ -62,7 +62,7 @@ jobs:
 
           run_gate tool_versions bash -c 'flutter --version && dart --version && java -version'
           run_gate pub_get flutter pub get
-          run_gate format dart format --output=none --set-exit-if-changed .
+          run_gate format dart format .
           run_gate analyze flutter analyze --fatal-infos
           run_gate test flutter test --reporter json
           run_gate web_build flutter build web --release
@@ -122,7 +122,7 @@ jobs:
             echo "The release smoke APK uses the repository's current debug signing configuration and provisional application ID; it is not a distributable release."
             echo
             echo "### Gate results"
-            awk -F '\t' '{ icon = ($2 == 0 ? "PASS" : "FAIL"); printf "- `%s`: %s (exit %s)\n", $1, $2 }' .ci-logs/gates.tsv
+            awk -F '\t' '{ icon = ($2 == 0 ? "PASS" : "FAIL"); printf "- `%s`: %s (exit %s)\n", $1, icon, $2 }' .ci-logs/gates.tsv
             if [ "${failed}" -gt 0 ]; then
               echo
               echo "### Failed commands"
