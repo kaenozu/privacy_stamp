@@ -74,7 +74,9 @@ void main() {
     tester,
   ) async {
     final controller = _controller(
-      picker: _QueuePicker(<Object?>[StateError('secret path: /tmp/private')]),
+      picker: _QueuePicker(<Object?>[
+        Exception('secret path: /tmp/private'),
+      ]),
     );
     await tester.pumpWidget(
       PrivacyStampApp(home: StampHomePage(controller: controller)),
@@ -83,7 +85,10 @@ void main() {
     await tester.tap(find.text('画像を選ぶ'));
     await tester.pumpAndSettle();
 
-    expect(find.text('画像を選択できませんでした。もう一度お試しください。'), findsOneWidget);
+    expect(
+      find.text('画像を選択できませんでした。もう一度お試しください。'),
+      findsOneWidget,
+    );
     expect(find.textContaining('/tmp/private'), findsNothing);
     expect(find.text('画像を選ぶ'), findsOneWidget);
   });
@@ -101,7 +106,10 @@ void main() {
     await tester.tap(find.text('画像を選ぶ'));
     await tester.pumpAndSettle();
 
-    expect(find.text('この画像を読み込めませんでした。別の画像を選んでください。'), findsOneWidget);
+    expect(
+      find.text('この画像を読み込めませんでした。別の画像を選んでください。'),
+      findsOneWidget,
+    );
     expect(find.text('画像を選ぶ'), findsOneWidget);
   });
 
