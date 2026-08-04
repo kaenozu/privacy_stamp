@@ -1,0 +1,26 @@
+name: Agent formatter diagnostic
+
+on:
+  push:
+    branches:
+      - agent/privacy-stamp-image-memory-history-20260805
+
+permissions:
+  contents: read
+
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - run: flutter pub get
+      - name: Print formatter diff
+        shell: bash
+        run: |
+          dart format .
+          git diff -- lib/features/redaction/presentation/stamp_controller.dart test/image_memory_history_test.dart
+          exit 1
