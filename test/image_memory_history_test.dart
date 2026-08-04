@@ -24,30 +24,39 @@ void main() {
     );
   });
 
-  test('asynchronous inspection rejects images above the pixel limit', () async {
-    final source = img.encodePng(img.Image(width: 2, height: 2));
-    final exporter = RedactionExporter(maxPixels: 3);
+  test(
+    'asynchronous inspection rejects images above the pixel limit',
+    () async {
+      final source = img.encodePng(img.Image(width: 2, height: 2));
+      final exporter = RedactionExporter(maxPixels: 3);
 
-    await expectLater(exporter.inspect(source), throwsA(isA<FormatException>()));
-  });
+      await expectLater(
+        exporter.inspect(source),
+        throwsA(isA<FormatException>()),
+      );
+    },
+  );
 
-  test('history persistence failure does not inflate the displayed count', () async {
-    final history = _History(initial: 7, failRecord: true);
-    final controller = StampController(
-      picker: const _Picker(),
-      detector: const _Detector(),
-      exporter: (source, stamps) => Uint8List.fromList(<int>[1]),
-      saver: const _Saver(),
-      history: history,
-    );
-    await Future<void>.delayed(Duration.zero);
-    await controller.pickImage();
-    controller.addManualStamp();
+  test(
+    'history persistence failure does not inflate the displayed count',
+    () async {
+      final history = _History(initial: 7, failRecord: true);
+      final controller = StampController(
+        picker: const _Picker(),
+        detector: const _Detector(),
+        exporter: (source, stamps) => Uint8List.fromList(<int>[1]),
+        saver: const _Saver(),
+        history: history,
+      );
+      await Future<void>.delayed(Duration.zero);
+      await controller.pickImage();
+      controller.addManualStamp();
 
-    expect(await controller.exportImage(), ExportResult.exported);
-    expect(controller.exportCount, 7);
-    expect(history.recordCalls, 1);
-  });
+      expect(await controller.exportImage(), ExportResult.exported);
+      expect(controller.exportCount, 7);
+      expect(history.recordCalls, 1);
+    },
+  );
 
   test('successful history persistence increments the displayed count', () async {
     final history = _History(initial: 2);
