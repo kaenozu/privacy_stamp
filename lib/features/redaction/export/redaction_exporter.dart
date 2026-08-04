@@ -122,21 +122,31 @@ img.Image _decodeAndOrient(
     throw const FormatException('画像ファイルが大きすぎます');
   }
 
-  final img.Image decoded;
   try {
-    final value = img.decodeImage(source);
-    if (value == null) throw const FormatException('画像を読み込めませんでした');
-    decoded = value;
+    final decoder = img.findDecoderForData(source);
+    if (decoder == null) {
+      throw const FormatException('画像を読み込めませんでした');
+    }
+    final info = decoder.startDecode(source);
+    if (info == null) {
+      throw const FormatException('画像を読み込めませんでした');
+    }
+
+    // Reject decompression bombs before allocating the full pixel buffer.
+    _validateDimensions(info.width, info.height, maxPixels: maxPixels);
+    final decoded = decoder.decodeFrame(0);
+    if (decoded == null) {
+      throw const FormatException('画像を読み込めませんでした');
+    }
+
+    final oriented = img.bakeOrientation(decoded);
+    _validateDimensions(oriented.width, oriented.height, maxPixels: maxPixels);
+    return oriented;
   } on FormatException {
     rethrow;
   } catch (_) {
     throw const FormatException('画像を読み込めませんでした');
   }
-
-  _validateDimensions(decoded.width, decoded.height, maxPixels: maxPixels);
-  final oriented = img.bakeOrientation(decoded);
-  _validateDimensions(oriented.width, oriented.height, maxPixels: maxPixels);
-  return oriented;
 }
 
 void _validateDimensions(int width, int height, {required int maxPixels}) {
