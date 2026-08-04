@@ -62,7 +62,7 @@ jobs:
 
           run_gate tool_versions bash -c 'flutter --version && dart --version && java -version'
           run_gate pub_get flutter pub get
-          run_gate format dart format .
+          run_gate format dart format --output=none --set-exit-if-changed .
           run_gate analyze flutter analyze --fatal-infos
           run_gate test flutter test --reporter json
           run_gate web_build flutter build web --release
@@ -143,5 +143,3 @@ jobs:
             build/web/
             build/app/outputs/flutter-apk/app-debug.apk
             build/app/outputs/flutter-apk/app-release.apk
-            lib/features/redaction/presentation/stamp_controller.dart
-            test/pick_image_failure_test.dart

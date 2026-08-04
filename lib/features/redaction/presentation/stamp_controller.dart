@@ -232,9 +232,7 @@ class StampController extends ChangeNotifier {
       notifyListeners();
 
       try {
-        final detections = await detector.inspect(
-          Uint8ListImageInput(_bytes!),
-        );
+        final detections = await detector.inspect(Uint8ListImageInput(_bytes!));
         if (!_isCurrent(token)) return PickImageResult.stale;
         _detections = List.unmodifiable(detections);
         _pickFailure = null;

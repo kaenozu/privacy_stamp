@@ -17,40 +17,46 @@ void main() {
     expect(controller.isBusy, isFalse);
   });
 
-  test('picker failure is retryable and a later success clears the error', () async {
-    final controller = _controller(
-      picker: _QueuePicker(<Object?>[
-        const ImagePickException(PickImageFailure.picker),
-        const _PickedImage(),
-      ]),
-    );
+  test(
+    'picker failure is retryable and a later success clears the error',
+    () async {
+      final controller = _controller(
+        picker: _QueuePicker(<Object?>[
+          const ImagePickException(PickImageFailure.picker),
+          const _PickedImage(),
+        ]),
+      );
 
-    final failed = await controller.pickImage();
-    expect(failed, PickImageResult.pickerFailed);
-    expect(controller.pickFailure, PickImageFailure.picker);
-    expect(controller.hasImage, isFalse);
-    expect(controller.isBusy, isFalse);
+      final failed = await controller.pickImage();
+      expect(failed, PickImageResult.pickerFailed);
+      expect(controller.pickFailure, PickImageFailure.picker);
+      expect(controller.hasImage, isFalse);
+      expect(controller.isBusy, isFalse);
 
-    final succeeded = await controller.pickImage();
-    expect(succeeded, PickImageResult.selected);
-    expect(controller.pickFailure, isNull);
-    expect(controller.hasImage, isTrue);
-  });
+      final succeeded = await controller.pickImage();
+      expect(succeeded, PickImageResult.selected);
+      expect(controller.pickFailure, isNull);
+      expect(controller.hasImage, isTrue);
+    },
+  );
 
-  test('decode failure is categorized without exposing internal details', () async {
-    final controller = _controller(
-      picker: _QueuePicker(<Object?>[
-        const ImagePickException(PickImageFailure.decode),
-      ]),
-    );
+  test(
+    'decode failure is categorized without exposing internal details',
+    () async {
+      final controller = _controller(
+        picker: _QueuePicker(<Object?>[
+          const ImagePickException(PickImageFailure.decode),
+        ]),
+      );
 
-    final result = await controller.pickImage();
+      final result = await controller.pickImage();
 
-    expect(result, PickImageResult.decodeFailed);
-    expect(controller.pickFailure, PickImageFailure.decode);
-    expect(controller.hasImage, isFalse);
-    expect(controller.isBusy, isFalse);
-  });
+      expect(result, PickImageResult.decodeFailed);
+      expect(controller.pickFailure, PickImageFailure.decode);
+      expect(controller.hasImage, isFalse);
+      expect(controller.isBusy, isFalse);
+    },
+  );
 
   test('detection failure keeps the selected image editable', () async {
     final controller = _controller(
@@ -74,9 +80,7 @@ void main() {
     tester,
   ) async {
     final controller = _controller(
-      picker: _QueuePicker(<Object?>[
-        Exception('secret path: /tmp/private'),
-      ]),
+      picker: _QueuePicker(<Object?>[Exception('secret path: /tmp/private')]),
     );
     await tester.pumpWidget(
       PrivacyStampApp(home: StampHomePage(controller: controller)),
@@ -85,15 +89,14 @@ void main() {
     await tester.tap(find.text('画像を選ぶ'));
     await tester.pumpAndSettle();
 
-    expect(
-      find.text('画像を選択できませんでした。もう一度お試しください。'),
-      findsOneWidget,
-    );
+    expect(find.text('画像を選択できませんでした。もう一度お試しください。'), findsOneWidget);
     expect(find.textContaining('/tmp/private'), findsNothing);
     expect(find.text('画像を選ぶ'), findsOneWidget);
   });
 
-  testWidgets('shows decode guidance and remains on the picker', (tester) async {
+  testWidgets('shows decode guidance and remains on the picker', (
+    tester,
+  ) async {
     final controller = _controller(
       picker: _QueuePicker(<Object?>[
         const ImagePickException(PickImageFailure.decode),
@@ -106,10 +109,7 @@ void main() {
     await tester.tap(find.text('画像を選ぶ'));
     await tester.pumpAndSettle();
 
-    expect(
-      find.text('この画像を読み込めませんでした。別の画像を選んでください。'),
-      findsOneWidget,
-    );
+    expect(find.text('この画像を読み込めませんでした。別の画像を選んでください。'), findsOneWidget);
     expect(find.text('画像を選ぶ'), findsOneWidget);
   });
 
@@ -127,10 +127,7 @@ void main() {
     await tester.tap(find.text('画像を選ぶ'));
     await tester.pumpAndSettle();
 
-    expect(
-      find.text('画像の自動確認に失敗しました。画像は手動で編集できます。'),
-      findsOneWidget,
-    );
+    expect(find.text('画像の自動確認に失敗しました。画像は手動で編集できます。'), findsOneWidget);
     expect(find.text('手動スタンプを追加'), findsOneWidget);
   });
 }
