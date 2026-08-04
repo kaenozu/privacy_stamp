@@ -10,6 +10,11 @@ import '../detection/detector_service.dart';
 import '../export/redaction_exporter.dart';
 import '../models/redaction_models.dart';
 
+typedef RedactionEncoder = FutureOr<Uint8List> Function(
+  Uint8List source,
+  List<Stamp> stamps,
+);
+
 abstract interface class ImagePickerGateway {
   Future<PickedImage?> pick();
 }
@@ -154,8 +159,7 @@ class StampController extends ChangeNotifier {
 
   final ImagePickerGateway picker;
   final DetectionGateway detector;
-  final FutureOr<Uint8List> Function(Uint8List source, List<Stamp> stamps)
-  exporter;
+  final RedactionEncoder exporter;
   final ImageSaverGateway saver;
   final ExportHistoryGateway history;
 
