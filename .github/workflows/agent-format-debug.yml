@@ -1,6 +1,7 @@
 name: Agent formatter diagnostic
 
 on:
+  pull_request:
   push:
     branches:
       - agent/privacy-stamp-image-memory-history-20260805
