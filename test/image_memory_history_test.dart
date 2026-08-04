@@ -11,15 +11,9 @@ void main() {
     final exporter = RedactionExporter(maxSourceBytes: 2);
 
     expect(
-      () => exporter.encode(
-        Uint8List.fromList(<int>[1, 2, 3]),
-        <Stamp>[
-          Stamp(
-            id: 'mask',
-            rect: const NormalizedRect(.1, .1, .2, .2),
-          ),
-        ],
-      ),
+      () => exporter.encode(Uint8List.fromList(<int>[1, 2, 3]), <Stamp>[
+        Stamp(id: 'mask', rect: const NormalizedRect(.1, .1, .2, .2)),
+      ]),
       throwsA(isA<FormatException>()),
     );
   });
@@ -58,22 +52,25 @@ void main() {
     },
   );
 
-  test('successful history persistence increments the displayed count', () async {
-    final history = _History(initial: 2);
-    final controller = StampController(
-      picker: const _Picker(),
-      detector: const _Detector(),
-      exporter: (source, stamps) => Uint8List.fromList(<int>[1]),
-      saver: const _Saver(),
-      history: history,
-    );
-    await Future<void>.delayed(Duration.zero);
-    await controller.pickImage();
-    controller.addManualStamp();
+  test(
+    'successful history persistence increments the displayed count',
+    () async {
+      final history = _History(initial: 2);
+      final controller = StampController(
+        picker: const _Picker(),
+        detector: const _Detector(),
+        exporter: (source, stamps) => Uint8List.fromList(<int>[1]),
+        saver: const _Saver(),
+        history: history,
+      );
+      await Future<void>.delayed(Duration.zero);
+      await controller.pickImage();
+      controller.addManualStamp();
 
-    expect(await controller.exportImage(), ExportResult.exported);
-    expect(controller.exportCount, 3);
-  });
+      expect(await controller.exportImage(), ExportResult.exported);
+      expect(controller.exportCount, 3);
+    },
+  );
 }
 
 class _Picker implements ImagePickerGateway {
