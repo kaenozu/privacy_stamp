@@ -10,10 +10,8 @@ import '../detection/detector_service.dart';
 import '../export/redaction_exporter.dart';
 import '../models/redaction_models.dart';
 
-typedef RedactionEncoder = FutureOr<Uint8List> Function(
-  Uint8List source,
-  List<Stamp> stamps,
-);
+typedef RedactionEncoder =
+    FutureOr<Uint8List> Function(Uint8List source, List<Stamp> stamps);
 
 abstract interface class ImagePickerGateway {
   Future<PickedImage?> pick();
@@ -63,9 +61,7 @@ class PickedImage {
 }
 
 class FilePickerImageGateway implements ImagePickerGateway {
-  const FilePickerImageGateway({
-    this.inspector = const RedactionExporter(),
-  });
+  const FilePickerImageGateway({this.inspector = const RedactionExporter()});
 
   final RedactionExporter inspector;
 
@@ -90,11 +86,7 @@ class FilePickerImageGateway implements ImagePickerGateway {
 
     try {
       final imageSize = await inspector.inspect(bytes);
-      return PickedImage(
-        bytes: bytes,
-        name: file.name,
-        imageSize: imageSize,
-      );
+      return PickedImage(bytes: bytes, name: file.name, imageSize: imageSize);
     } catch (_) {
       throw const ImagePickException(PickImageFailure.decode);
     }
