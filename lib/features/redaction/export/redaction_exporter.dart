@@ -1,4 +1,3 @@
-import 'dart:typed_data';
 import 'dart:ui';
 
 import 'package:flutter/foundation.dart';
@@ -104,8 +103,7 @@ Uint8List _encodeRedaction(Map<String, Object> payload) {
     );
   }
 
-  final encoded = img.encodePng(oriented);
-  final output = encoded is Uint8List ? encoded : Uint8List.fromList(encoded);
+  final output = img.encodePng(oriented);
   _validatePngHeader(
     output,
     expectedWidth: oriented.width,
