@@ -52,6 +52,24 @@ class _StampHomePageState extends State<StampHomePage> {
     if (mounted) setState(() {});
   }
 
+  Future<void> _pickImage() async {
+    final result = await _controller.pickImage();
+    if (!mounted) return;
+    switch (result) {
+      case PickImageResult.selected:
+      case PickImageResult.cancelled:
+      case PickImageResult.busy:
+      case PickImageResult.stale:
+        break;
+      case PickImageResult.pickerFailed:
+        _notice('画像を選択できませんでした。もう一度お試しください。');
+      case PickImageResult.decodeFailed:
+        _notice('この画像を読み込めませんでした。別の画像を選んでください。');
+      case PickImageResult.detectionFailed:
+        _notice('画像の自動確認に失敗しました。画像は手動で編集できます。');
+    }
+  }
+
   Future<void> _export() async {
     final result = await _controller.exportImage();
     if (!mounted) return;
@@ -99,7 +117,7 @@ class _StampHomePageState extends State<StampHomePage> {
             onExport: _export,
             onReset: _controller.reset,
           )
-        : _Picker(onPick: _controller.pickImage, busy: _controller.isBusy),
+        : _Picker(onPick: _pickImage, busy: _controller.isBusy),
   );
 
   @override

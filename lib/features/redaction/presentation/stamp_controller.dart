@@ -26,6 +26,24 @@ abstract interface class ExportHistoryGateway {
   Future<void> recordExport();
 }
 
+enum PickImageFailure { picker, decode, detection }
+
+enum PickImageResult {
+  selected,
+  cancelled,
+  busy,
+  stale,
+  pickerFailed,
+  decodeFailed,
+  detectionFailed,
+}
+
+class ImagePickException implements Exception {
+  const ImagePickException(this.failure);
+
+  final PickImageFailure failure;
+}
+
 class PickedImage {
   const PickedImage({
     required this.bytes,
@@ -41,24 +59,39 @@ class PickedImage {
 class FilePickerImageGateway implements ImagePickerGateway {
   @override
   Future<PickedImage?> pick() async {
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.image,
-      withData: true,
-    );
-    final file = result?.files.single;
-    final bytes = file?.bytes;
-    if (bytes == null || bytes.isEmpty) return null;
-
-    final decoded = img.decodeImage(bytes);
-    if (decoded == null) {
-      throw const FormatException('画像を読み込めませんでした');
+    final FilePickerResult? result;
+    try {
+      result = await FilePicker.platform.pickFiles(
+        type: FileType.image,
+        withData: true,
+      );
+    } catch (_) {
+      throw const ImagePickException(PickImageFailure.picker);
     }
-    final oriented = img.bakeOrientation(decoded);
-    return PickedImage(
-      bytes: bytes,
-      name: file!.name,
-      imageSize: PixelSize(oriented.width, oriented.height),
-    );
+
+    final file = result?.files.single;
+    if (file == null) return null;
+    final bytes = file.bytes;
+    if (bytes == null || bytes.isEmpty) {
+      throw const ImagePickException(PickImageFailure.decode);
+    }
+
+    try {
+      final decoded = img.decodeImage(bytes);
+      if (decoded == null) {
+        throw const ImagePickException(PickImageFailure.decode);
+      }
+      final oriented = img.bakeOrientation(decoded);
+      return PickedImage(
+        bytes: bytes,
+        name: file.name,
+        imageSize: PixelSize(oriented.width, oriented.height),
+      );
+    } on ImagePickException {
+      rethrow;
+    } catch (_) {
+      throw const ImagePickException(PickImageFailure.decode);
+    }
   }
 }
 
@@ -128,6 +161,7 @@ class StampController extends ChangeNotifier {
   PixelSize? _imageSize;
   List<DetectionRegion> _detections = const [];
   List<Stamp> _manualStamps = const [];
+  PickImageFailure? _pickFailure;
   bool _busy = false;
   bool _disposed = false;
   int _generation = 0;
@@ -139,6 +173,7 @@ class StampController extends ChangeNotifier {
   bool get hasImage => _bytes != null;
   bool get isBusy => _busy;
   int get exportCount => _exportCount;
+  PickImageFailure? get pickFailure => _pickFailure;
   List<DetectionRegion> get detections => List.unmodifiable(_detections);
   List<Stamp> get manualStamps => List.unmodifiable(_manualStamps);
   List<Stamp> get stamps => [
@@ -163,14 +198,31 @@ class StampController extends ChangeNotifier {
     }
   }
 
-  Future<void> pickImage() async {
-    if (_busy || _disposed) return;
+  Future<PickImageResult> pickImage() async {
+    if (_disposed) return PickImageResult.stale;
+    if (_busy) return PickImageResult.busy;
+
     final token = ++_generation;
+    _pickFailure = null;
     _busy = true;
     notifyListeners();
+
     try {
-      final picked = await picker.pick();
-      if (!_isCurrent(token) || picked == null) return;
+      final PickedImage? picked;
+      try {
+        picked = await picker.pick();
+      } on ImagePickException catch (error) {
+        if (!_isCurrent(token)) return PickImageResult.stale;
+        _pickFailure = error.failure;
+        return _resultForFailure(error.failure);
+      } catch (_) {
+        if (!_isCurrent(token)) return PickImageResult.stale;
+        _pickFailure = PickImageFailure.picker;
+        return PickImageResult.pickerFailed;
+      }
+
+      if (!_isCurrent(token)) return PickImageResult.stale;
+      if (picked == null) return PickImageResult.cancelled;
 
       _bytes = Uint8List.fromList(picked.bytes);
       _fileName = picked.name;
@@ -179,12 +231,20 @@ class StampController extends ChangeNotifier {
       _manualStamps = const [];
       notifyListeners();
 
-      final detections = await detector.inspect(Uint8ListImageInput(_bytes!));
-      if (!_isCurrent(token)) return;
-      _detections = List.unmodifiable(detections);
-    } catch (_) {
-      // The UI reports a generic retryable message; internal exception details
-      // never become user-facing text.
+      try {
+        final detections = await detector.inspect(Uint8ListImageInput(_bytes!));
+        if (!_isCurrent(token)) return PickImageResult.stale;
+        _detections = List.unmodifiable(detections);
+        _pickFailure = null;
+        return PickImageResult.selected;
+      } catch (_) {
+        if (!_isCurrent(token)) return PickImageResult.stale;
+        // The selected image remains editable. Automatic suggestions are an
+        // optional enhancement and must not discard a valid local image.
+        _detections = const [];
+        _pickFailure = PickImageFailure.detection;
+        return PickImageResult.detectionFailed;
+      }
     } finally {
       if (_isCurrent(token)) {
         _busy = false;
@@ -192,6 +252,13 @@ class StampController extends ChangeNotifier {
       }
     }
   }
+
+  PickImageResult _resultForFailure(PickImageFailure failure) =>
+      switch (failure) {
+        PickImageFailure.picker => PickImageResult.pickerFailed,
+        PickImageFailure.decode => PickImageResult.decodeFailed,
+        PickImageFailure.detection => PickImageResult.detectionFailed,
+      };
 
   void addManualStamp() => addManualStampAt(const Offset(.5, .5));
 
@@ -256,6 +323,7 @@ class StampController extends ChangeNotifier {
     _imageSize = null;
     _detections = const [];
     _manualStamps = const [];
+    _pickFailure = null;
     _busy = false;
     notifyListeners();
   }
