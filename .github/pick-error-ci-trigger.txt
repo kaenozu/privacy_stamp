@@ -1,1 +1,0 @@
-Trigger final quality gates for the formatted image failure fix.
