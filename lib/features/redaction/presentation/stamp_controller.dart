@@ -1,8 +1,9 @@
+import 'dart:async';
+import 'dart:typed_data';
 import 'dart:ui';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
-import 'package:image/image.dart' as img;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../detection/detector_service.dart';
@@ -57,6 +58,12 @@ class PickedImage {
 }
 
 class FilePickerImageGateway implements ImagePickerGateway {
+  const FilePickerImageGateway({
+    this.inspector = const RedactionExporter(),
+  });
+
+  final RedactionExporter inspector;
+
   @override
   Future<PickedImage?> pick() async {
     final FilePickerResult? result;
@@ -77,18 +84,12 @@ class FilePickerImageGateway implements ImagePickerGateway {
     }
 
     try {
-      final decoded = img.decodeImage(bytes);
-      if (decoded == null) {
-        throw const ImagePickException(PickImageFailure.decode);
-      }
-      final oriented = img.bakeOrientation(decoded);
+      final imageSize = await inspector.inspect(bytes);
       return PickedImage(
         bytes: bytes,
         name: file.name,
-        imageSize: PixelSize(oriented.width, oriented.height),
+        imageSize: imageSize,
       );
-    } on ImagePickException {
-      rethrow;
     } catch (_) {
       throw const ImagePickException(PickImageFailure.decode);
     }
@@ -125,7 +126,8 @@ class SharedPreferencesExportHistory implements ExportHistoryGateway {
   @override
   Future<void> recordExport() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt(_key, (prefs.getInt(_key) ?? 0) + 1);
+    final saved = await prefs.setInt(_key, (prefs.getInt(_key) ?? 0) + 1);
+    if (!saved) throw StateError('書き出し履歴を保存できませんでした');
   }
 }
 
@@ -143,16 +145,17 @@ class StampController extends ChangeNotifier {
   }
 
   factory StampController.defaults() => StampController(
-    picker: FilePickerImageGateway(),
+    picker: const FilePickerImageGateway(),
     detector: DetectionServiceGateway(),
-    exporter: RedactionExporter().encode,
+    exporter: const RedactionExporter().encodeAsync,
     saver: FilePickerImageSaver(),
     history: SharedPreferencesExportHistory(),
   );
 
   final ImagePickerGateway picker;
   final DetectionGateway detector;
-  final Uint8List Function(Uint8List source, List<Stamp> stamps) exporter;
+  final FutureOr<Uint8List> Function(Uint8List source, List<Stamp> stamps)
+  exporter;
   final ImageSaverGateway saver;
   final ExportHistoryGateway history;
 
@@ -224,7 +227,9 @@ class StampController extends ChangeNotifier {
       if (!_isCurrent(token)) return PickImageResult.stale;
       if (picked == null) return PickImageResult.cancelled;
 
-      _bytes = Uint8List.fromList(picked.bytes);
+      _bytes = picked.bytes is Uint8List
+          ? picked.bytes as Uint8List
+          : Uint8List.fromList(picked.bytes);
       _fileName = picked.name;
       _imageSize = picked.imageSize;
       _detections = const [];
@@ -339,20 +344,24 @@ class StampController extends ChangeNotifier {
     _busy = true;
     notifyListeners();
     try {
-      final output = exporter(bytes, stamps);
+      final output = await exporter(bytes, stamps);
       final saved = await saver.save(
         output,
         fileName: 'privacy-stamped-${_fileName ?? 'image'}.png',
       );
       if (!_isCurrent(token)) return ExportResult.stale;
       if (!saved) return ExportResult.cancelled;
+
+      var historyPersisted = false;
       try {
         await history.recordExport();
+        historyPersisted = true;
       } catch (_) {
-        // Export history is not part of the image-save result.
+        // The image save succeeded. History remains unchanged when persistence
+        // fails so the displayed count cannot roll back after restart.
       }
       if (!_isCurrent(token)) return ExportResult.stale;
-      _exportCount++;
+      if (historyPersisted) _exportCount++;
       return ExportResult.exported;
     } catch (_) {
       return ExportResult.failed;
