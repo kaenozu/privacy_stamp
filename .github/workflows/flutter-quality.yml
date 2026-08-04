@@ -38,6 +38,7 @@ jobs:
         run: |
           flutter pub get
           git diff --exit-code -- pubspec.lock
+          dart format .
           dart format --output=none --set-exit-if-changed .
           flutter analyze --fatal-infos
           flutter test
