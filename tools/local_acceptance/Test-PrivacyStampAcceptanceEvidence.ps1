@@ -30,7 +30,7 @@ Assert-Equal (
 
 Assert-Equal (Get-PrivacyStampPeakPssKb @(120000, $null, 237734, 180000)) `
     237734 'Peak PSS calculation failed'
-Assert-Equal (Get-PrivacyStampPeakPssKb @()) $null `
+Assert-Equal (Get-PrivacyStampPeakPssKb -Samples @()) $null `
     'Empty peak sample must remain unavailable'
 
 $baseline = ConvertFrom-PrivacyStampDeviceFileSnapshot @(
