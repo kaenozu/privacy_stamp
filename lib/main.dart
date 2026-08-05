@@ -4,6 +4,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 
 import 'features/redaction/models/redaction_models.dart';
+import 'features/redaction/presentation/image_decode_policy.dart';
 import 'features/redaction/presentation/stamp_controller.dart';
 
 void main() => runApp(const PrivacyStampApp());
@@ -420,11 +421,22 @@ class _ImageEditorCanvas extends StatelessWidget {
             child: Stack(
               fit: StackFit.expand,
               children: [
-                Image.memory(
-                  bytes,
-                  fit: BoxFit.contain,
-                  errorBuilder: (context, error, stackTrace) =>
-                      const Center(child: Text('画像を表示できません')),
+                Builder(
+                  builder: (context) {
+                    final target = editorDecodeTarget(
+                      imageSize: imageSize,
+                      canvasSize: canvasSize,
+                      devicePixelRatio: MediaQuery.devicePixelRatioOf(context),
+                    );
+                    return Image.memory(
+                      bytes,
+                      fit: BoxFit.contain,
+                      cacheWidth: target.width,
+                      cacheHeight: target.height,
+                      errorBuilder: (context, error, stackTrace) =>
+                          const Center(child: Text('画像を表示できません')),
+                    );
+                  },
                 ),
                 for (final stamp in stamps)
                   _StampOverlay(
