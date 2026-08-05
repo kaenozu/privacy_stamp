@@ -5,7 +5,9 @@ import 'image_metadata.dart';
 
 Future<void> main(List<String> arguments) async {
   if (arguments.length != 1) {
-    stderr.writeln('Usage: dart run tool/acceptance/image_metadata_probe.dart <image>');
+    stderr.writeln(
+      'Usage: dart run tool/acceptance/image_metadata_probe.dart <image>',
+    );
     exitCode = 64;
     return;
   }

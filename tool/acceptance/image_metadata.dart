@@ -94,8 +94,11 @@ _PngMetadataResult _inspectPngMetadata(Uint8List bytes) {
   var gpsPresent = false;
 
   while (offset + 12 <= bytes.length) {
-    final length = ByteData.sublistView(bytes, offset, offset + 4)
-        .getUint32(0, Endian.big);
+    final length = ByteData.sublistView(
+      bytes,
+      offset,
+      offset + 4,
+    ).getUint32(0, Endian.big);
     final typeStart = offset + 4;
     final dataStart = offset + 8;
     final dataEnd = dataStart + length;
@@ -121,7 +124,8 @@ _PngMetadataResult _inspectPngMetadata(Uint8List bytes) {
     } else if (type == 'tEXt' || type == 'iTXt' || type == 'zTXt') {
       metadataContainerPresent = true;
       final text = latin1.decode(data, allowInvalid: true).toLowerCase();
-      gpsPresent = gpsPresent ||
+      gpsPresent =
+          gpsPresent ||
           text.contains('gpslatitude') ||
           text.contains('gpslongitude') ||
           text.contains('gpsposition') ||
