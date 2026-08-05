@@ -52,12 +52,43 @@ class RedactionExporter {
 }
 
 List<int> _inspectImage(Map<String, Object> payload) {
-  final oriented = _decodeAndOrient(
-    payload['source']! as Uint8List,
-    maxSourceBytes: payload['maxSourceBytes']! as int,
-    maxPixels: payload['maxPixels']! as int,
-  );
-  return <int>[oriented.width, oriented.height];
+  final source = payload['source']! as Uint8List;
+  final maxSourceBytes = payload['maxSourceBytes']! as int;
+  final maxPixels = payload['maxPixels']! as int;
+  if (source.isEmpty) throw const FormatException('画像データが空です');
+  if (source.lengthInBytes > maxSourceBytes) {
+    throw const FormatException('画像ファイルが大きすぎます');
+  }
+
+  try {
+    final decoder = img.findDecoderForData(source);
+    if (decoder == null || !decoder.isValidFile(source)) {
+      throw const FormatException('画像を読み込めませんでした');
+    }
+    final info = decoder.startDecode(source);
+    if (info == null || info.numFrames < 1) {
+      throw const FormatException('画像を読み込めませんでした');
+    }
+    _validateDimensions(info.width, info.height, maxPixels: maxPixels);
+
+    var width = info.width;
+    var height = info.height;
+    final orientation = img.decodeJpgExif(source)?.imageIfd.orientation;
+    if (orientation == 5 ||
+        orientation == 6 ||
+        orientation == 7 ||
+        orientation == 8) {
+      final originalWidth = width;
+      width = height;
+      height = originalWidth;
+    }
+    _validateDimensions(width, height, maxPixels: maxPixels);
+    return <int>[width, height];
+  } on FormatException {
+    rethrow;
+  } catch (_) {
+    throw const FormatException('画像を読み込めませんでした');
+  }
 }
 
 Uint8List _encodeRedaction(Map<String, Object> payload) {
