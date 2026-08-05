@@ -14,11 +14,16 @@ param(
     [switch]$SkipAvdCreation,
     [switch]$KeepAvdData,
     [switch]$RequireInputGps,
+    [switch]$AllowInputWithoutGps,
+    [string]$OrientationConfirmation,
+    [string]$MaskConfirmation,
+    [string]$LifecycleConfirmation,
     [switch]$NonInteractive
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+Import-Module (Join-Path $PSScriptRoot 'PrivacyStampAcceptanceEvidence.psm1') -Force
 
 function Require-Command([string]$Name) {
     $command = Get-Command $Name -ErrorAction SilentlyContinue
@@ -53,10 +58,33 @@ function Wait-Boot([int]$TimeoutSeconds = 300) {
     throw "Emulator $Serial did not boot within $TimeoutSeconds seconds."
 }
 
-function DeviceFiles {
-    $script = 'for d in /sdcard/Download /sdcard/Pictures /sdcard/DCIM; do [ -d "$d" ] && find "$d" -type f 2>/dev/null; done | sort'
-    (Adb @('shell', 'sh', '-c', $script) -AllowFailure).Lines |
-        Where-Object { $_ -match '^/sdcard/' }
+function DeviceFileSnapshot {
+    $script = 'for d in /sdcard/Download /sdcard/Pictures /sdcard/DCIM; do if [ -d "$d" ]; then find "$d" -type f 2>/dev/null | while IFS= read -r f; do m=$(stat -c %Y "$f" 2>/dev/null || echo 0); s=$(stat -c %s "$f" 2>/dev/null || echo 0); printf "%s|%s|%s\n" "$m" "$s" "$f"; done; fi; done'
+    $lines = (Adb @('shell', 'sh', '-c', $script) -AllowFailure).Lines
+    ConvertFrom-PrivacyStampDeviceFileSnapshot -Lines $lines
+}
+
+function Get-CurrentTotalPssKb {
+    $meminfo = Adb @('shell', 'dumpsys', 'meminfo', $PackageName) -AllowFailure
+    ConvertFrom-PrivacyStampMeminfoTotalPssKb -Lines $meminfo.Lines
+}
+
+function Require-OperatorConfirmation(
+    [string]$Name,
+    [string]$Expected,
+    [string]$Provided,
+    [string]$Prompt
+) {
+    $actual = $Provided
+    if (-not $NonInteractive -and [string]::IsNullOrWhiteSpace($actual)) {
+        $actual = Read-Host $Prompt
+    }
+    if (-not (Test-PrivacyStampAcceptanceConfirmation `
+        -Actual ([string]$actual) `
+        -Expected $Expected)) {
+        throw "$Name requires exact confirmation token $Expected."
+    }
+    return $true
 }
 
 function Get-ImageMetadata([string]$Path) {
@@ -114,6 +142,9 @@ if ($inputInfo.format -notin @('JPEG', 'PNG', 'WEBP')) {
     throw "Unsupported source image format for this acceptance: $($inputInfo.format)"
 }
 $inputHasGps = [bool]$inputInfo.gpsPresent
+if (-not $inputHasGps -and -not $AllowInputWithoutGps) {
+    throw 'Final acceptance requires a GPS-bearing input. Use -AllowInputWithoutGps only for an explicitly non-final exploratory run.'
+}
 if ($RequireInputGps -and -not $inputHasGps) {
     throw 'RequireInputGps was specified, but no GPS metadata was found.'
 }
@@ -129,6 +160,11 @@ $lockPath = Join-Path (
 $lock = $null
 $emulatorProcess = $null
 $checks = [System.Collections.Generic.List[object]]::new()
+$pssSamples = [System.Collections.Generic.List[long]]::new()
+$peakPssKb = $null
+$orientationConfirmed = $false
+$maskConfirmed = $false
+$lifecycleConfirmed = $false
 $result = 'BLOCKER'
 
 function Check([string]$Name, [bool]$Passed, [string]$Detail) {
@@ -222,9 +258,9 @@ try {
     $extension = [System.IO.Path]::GetExtension($input).ToLowerInvariant()
     $deviceInput = "/sdcard/Download/privacy-stamp-input$extension"
     Adb @('push', $input, $deviceInput) | Out-Null
-    $baseline = @(DeviceFiles)
-    $baseline | Set-Content -LiteralPath (
-        Join-Path $runDirectory 'device-files-before.txt'
+    $baseline = @(DeviceFileSnapshot)
+    $baseline | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath (
+        Join-Path $runDirectory 'device-files-before.json'
     ) -Encoding utf8
 
     Adb @('shell', 'am', 'force-stop', $PackageName) | Out-Null
@@ -247,24 +283,17 @@ try {
     $outputDevicePath = $ExpectedOutputDevicePath
     $deadline = (Get-Date).AddSeconds($OutputWaitSeconds)
     do {
-        if ($outputDevicePath) {
-            $exists = (
-                Adb @('shell', 'test', '-f', $outputDevicePath) -AllowFailure
-            ).ExitCode -eq 0
-            if ($exists) { break }
-        } else {
-            $current = @(DeviceFiles)
-            $candidate = $current |
-                Where-Object {
-                    $_ -notin $baseline -and
-                    $_ -ne $deviceInput -and
-                    $_ -match '(?i)\.png$'
-                } |
-                Select-Object -Last 1
-            if ($candidate) {
-                $outputDevicePath = $candidate
-                break
-            }
+        $sample = Get-CurrentTotalPssKb
+        if ($null -ne $sample) { [void]$pssSamples.Add([long]$sample) }
+        $current = @(DeviceFileSnapshot)
+        $candidate = Select-PrivacyStampExportCandidate `
+            -Baseline $baseline `
+            -Current $current `
+            -InputDevicePath $deviceInput `
+            -ExpectedOutputDevicePath $ExpectedOutputDevicePath
+        if ($null -ne $candidate) {
+            $outputDevicePath = $candidate.Path
+            break
         }
         Start-Sleep -Seconds 2
     } while ((Get-Date) -lt $deadline)
@@ -289,27 +318,70 @@ try {
     Check 'Metadata container removed' (-not $outputHasMetadata) `
         "outputMetadataContainerPresent=$outputHasMetadata"
 
+    $orientationConfirmed = Require-OperatorConfirmation `
+        -Name 'Orientation review' `
+        -Expected 'ORIENTATION_OK' `
+        -Provided $OrientationConfirmation `
+        -Prompt 'Confirm the displayed orientation was correct by typing ORIENTATION_OK'
+    Check 'Orientation reviewed' $orientationConfirmed `
+        'Operator confirmed the source orientation without recording image content.'
+
+    $maskConfirmed = Require-OperatorConfirmation `
+        -Name 'Visible mask review' `
+        -Expected 'MASK_OK' `
+        -Provided $MaskConfirmation `
+        -Prompt 'Confirm at least one visible mask was present in the exported image by typing MASK_OK'
+    Check 'Visible mask reviewed' $maskConfirmed `
+        'Operator confirmed visible mask burn-in without recording image content.'
+
+    Adb @('shell', 'am', 'force-stop', $PackageName) | Out-Null
+    Adb @(
+        'shell', 'monkey', '-p', $PackageName,
+        '-c', 'android.intent.category.LAUNCHER', '1'
+    ) | Out-Null
+    Start-Sleep -Seconds 2
+    $restartedPid = (Adb @('shell', 'pidof', $PackageName) -AllowFailure).Text.Trim()
+    Check 'Lifecycle relaunch' (-not [string]::IsNullOrWhiteSpace($restartedPid)) `
+        'App process restarted after force-stop.'
+
+    $lifecycleConfirmed = Require-OperatorConfirmation `
+        -Name 'Cancel/back/lifecycle review' `
+        -Expected 'LIFECYCLE_OK' `
+        -Provided $LifecycleConfirmation `
+        -Prompt 'Confirm picker cancel, back, and lifecycle scenarios completed without stale UI or orphan files by typing LIFECYCLE_OK'
+    Check 'Cancel/back/lifecycle reviewed' $lifecycleConfirmed `
+        'Operator confirmed the required lifecycle scenarios.'
+
     $meminfo = Adb @('shell', 'dumpsys', 'meminfo', $PackageName) `
         -AllowFailure
     $meminfo.Lines | Set-Content -LiteralPath (
         Join-Path $runDirectory 'meminfo.txt'
     ) -Encoding utf8
+    $finalPss = ConvertFrom-PrivacyStampMeminfoTotalPssKb -Lines $meminfo.Lines
+    if ($null -ne $finalPss) { [void]$pssSamples.Add([long]$finalPss) }
+    $peakPssKb = Get-PrivacyStampPeakPssKb -Samples @($pssSamples)
+    Check 'Peak memory sampled' ($null -ne $peakPssKb) $(
+        if ($null -ne $peakPssKb) {
+            "peakTotalPssKb=$peakPssKb sampleCount=$($pssSamples.Count)"
+        } else {
+            'No parseable TOTAL PSS sample was captured.'
+        }
+    )
+
     $logcat = Adb @('logcat', '-d', '-v', 'threadtime') -AllowFailure
     $logcat.Lines | Set-Content -LiteralPath (
         Join-Path $runDirectory 'logcat.txt'
     ) -Encoding utf8
     $fatal = @(
-        $logcat.Lines |
-            Where-Object {
-                $_ -match [regex]::Escape($PackageName) -and
-                $_ -match 'FATAL EXCEPTION|ANR in|OutOfMemoryError|Fatal signal'
-            }
+        Find-PrivacyStampFatalEvents `
+            -Lines $logcat.Lines `
+            -PackageName $PackageName
     )
     Check 'Crash/ANR/OOM' ($fatal.Count -eq 0) $(
         if ($fatal.Count -eq 0) {
-            'No matching fatal event.'
+            'No package-matched fatal event.'
         } else {
-            $fatal -join ' | '
+            "eventTypes=$($fatal -join ',')"
         }
     )
 
@@ -325,6 +397,8 @@ try {
             serial = $Serial
             avd = $AvdName
             requestedRamMb = $RamMb
+            peakTotalPssKb = $peakPssKb
+            memorySampleCount = $pssSamples.Count
         }
         input = [ordered]@{
             bytes = (Get-Item -LiteralPath $input).Length
@@ -345,10 +419,17 @@ try {
             devicePathIncluded = $false
         }
         checks = @($checks)
+        humanEvidence = [ordered]@{
+            orientationReviewed = $orientationConfirmed
+            visibleMaskReviewed = $maskConfirmed
+            lifecycleReviewed = $lifecycleConfirmed
+            confirmationTokensIncluded = $false
+        }
         privacy = [ordered]@{
             imageCommittedToRepository = $false
             exifValuesIncluded = $false
             sourcePathIncluded = $false
+            devicePathsIncluded = $false
         }
     }
     $report | ConvertTo-Json -Depth 30 | Set-Content -LiteralPath (
@@ -365,6 +446,10 @@ try {
         "- Input GPS present: $inputHasGps",
         "- Output GPS present: $outputHasGps",
         "- Output metadata container present: $outputHasMetadata",
+        "- Peak TOTAL PSS: $peakPssKb kB ($($pssSamples.Count) samples)",
+        "- Orientation reviewed: $orientationConfirmed",
+        "- Visible mask reviewed: $maskConfirmed",
+        "- Lifecycle reviewed: $lifecycleConfirmed",
         '',
         '## Checks'
     ) + @(
@@ -381,5 +466,7 @@ try {
     if ($lock) { $lock.Dispose() }
     Remove-Item -LiteralPath $lockPath -Force -ErrorAction SilentlyContinue
 }
+
+if ($result -ne 'PASS') { exit 1 }
 
 if ($result -ne 'PASS') { exit 1 }
