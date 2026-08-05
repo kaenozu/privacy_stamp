@@ -3,7 +3,7 @@ $ErrorActionPreference = 'Stop'
 
 function ConvertFrom-PrivacyStampMeminfoTotalPssKb {
     [CmdletBinding()]
-    param([Parameter(Mandatory)][string[]]$Lines)
+    param([AllowEmptyCollection()][string[]]$Lines = @())
 
     foreach ($line in $Lines) {
         if ($line -match '^\s*TOTAL PSS:\s*(?<value>\d+)\b') {
@@ -20,7 +20,7 @@ function ConvertFrom-PrivacyStampMeminfoTotalPssKb {
 
 function Get-PrivacyStampPeakPssKb {
     [CmdletBinding()]
-    param([Parameter(Mandatory)][AllowEmptyCollection()][object[]]$Samples)
+    param([AllowEmptyCollection()][object[]]$Samples = @())
 
     $values = @(
         $Samples |
@@ -36,7 +36,7 @@ function Get-PrivacyStampPeakPssKb {
 
 function ConvertFrom-PrivacyStampDeviceFileSnapshot {
     [CmdletBinding()]
-    param([Parameter(Mandatory)][AllowEmptyCollection()][string[]]$Lines)
+    param([AllowEmptyCollection()][string[]]$Lines = @())
 
     $entries = [System.Collections.Generic.List[object]]::new()
     foreach ($line in $Lines) {
@@ -57,8 +57,8 @@ function ConvertFrom-PrivacyStampDeviceFileSnapshot {
 function Select-PrivacyStampExportCandidate {
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory)][AllowEmptyCollection()][object[]]$Baseline,
-        [Parameter(Mandatory)][AllowEmptyCollection()][object[]]$Current,
+        [AllowEmptyCollection()][object[]]$Baseline = @(),
+        [AllowEmptyCollection()][object[]]$Current = @(),
         [Parameter(Mandatory)][string]$InputDevicePath,
         [string]$ExpectedOutputDevicePath
     )
@@ -99,7 +99,7 @@ function Select-PrivacyStampExportCandidate {
 function Find-PrivacyStampFatalEvents {
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory)][AllowEmptyCollection()][string[]]$Lines,
+        [AllowEmptyCollection()][string[]]$Lines = @(),
         [Parameter(Mandatory)][string]$PackageName
     )
 
