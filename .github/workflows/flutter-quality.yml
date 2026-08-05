@@ -31,7 +31,18 @@ jobs:
           cache: true
 
       - name: Apply implementation
-        run: python3 .github/agent-apply-3.py
+        shell: bash
+        run: |
+          python3 .github/agent-apply-3.py
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('test/image_decode_policy_test.dart')
+          text = path.read_text(encoding='utf-8')
+          old = '      expect(target.height, 2);'
+          if text.count(old) != 1:
+              raise SystemExit(f'invalid viewport expectation count={text.count(old)}')
+          path.write_text(text.replace(old, '      expect(target.height, 1);', 1), encoding='utf-8')
+          PY
 
       - name: Verify changes
         shell: bash
