@@ -41,24 +41,35 @@ jobs:
       - name: Test metadata probe
         run: flutter test test/image_metadata_probe_test.dart
 
-  parse-powershell:
+  validate-powershell:
     runs-on: windows-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - name: Parse high-resolution acceptance runner
+      - name: Parse PowerShell acceptance files
         shell: pwsh
         run: |
-          $tokens = $null
-          $errors = $null
-          [System.Management.Automation.Language.Parser]::ParseFile(
-            (Resolve-Path ./tools/local_acceptance/Invoke-PrivacyStampHighResolutionAcceptance.ps1),
-            [ref]$tokens,
-            [ref]$errors
-          ) | Out-Null
-          if ($errors.Count -gt 0) {
-            $errors | Format-List | Out-String | Write-Error
-            exit 1
+          $ErrorActionPreference = 'Stop'
+          $files = @(
+            './tools/local_acceptance/Invoke-PrivacyStampHighResolutionAcceptance.ps1',
+            './tools/local_acceptance/PrivacyStampAcceptanceEvidence.psm1',
+            './tools/local_acceptance/Test-PrivacyStampAcceptanceEvidence.ps1'
+          )
+          foreach ($file in $files) {
+            $tokens = $null
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile(
+              (Resolve-Path $file),
+              [ref]$tokens,
+              [ref]$errors
+            ) | Out-Null
+            if ($errors.Count -gt 0) {
+              $errors | Format-List | Out-String | Write-Error
+              throw "PowerShell parse failed: $file"
+            }
           }
+      - name: Test evidence helpers
+        shell: pwsh
+        run: ./tools/local_acceptance/Test-PrivacyStampAcceptanceEvidence.ps1
