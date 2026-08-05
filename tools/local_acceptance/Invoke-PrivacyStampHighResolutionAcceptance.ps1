@@ -28,7 +28,9 @@ function Require-Command([string]$Name) {
 function Run([string]$File, [string[]]$Args, [switch]$AllowFailure) {
     $lines = @(& $File @Args 2>&1 | ForEach-Object { "$_" })
     $exitCode = $LASTEXITCODE
-    if ($exitCode -ne 0 -and -not $AllowFailure) { throw "$File exited with code $exitCode: $($lines -join ' ')" }
+    if ($exitCode -ne 0 -and -not $AllowFailure) {
+        throw "${File} exited with code ${exitCode}: $($lines -join ' ')"
+    }
     [pscustomobject]@{ ExitCode = $exitCode; Lines = $lines; Text = ($lines -join "`n") }
 }
 function Adb([string[]]$Args, [switch]$AllowFailure) {
@@ -75,8 +77,14 @@ function Check([string]$Name, [bool]$Passed, [string]$Detail) {
 
 try {
     New-Item -ItemType Directory -Path (Split-Path -Parent $lockPath) -Force | Out-Null
-    try { $lock = [System.IO.File]::Open($lockPath, 'CreateNew', 'ReadWrite', 'None') }
-    catch { throw "Another local acceptance run appears active: $lockPath" }
+    try {
+        $lock = [System.IO.File]::Open(
+            $lockPath,
+            [System.IO.FileMode]::CreateNew,
+            [System.IO.FileAccess]::ReadWrite,
+            [System.IO.FileShare]::None
+        )
+    } catch { throw "Another local acceptance run appears active: $lockPath" }
 
     $adb = Require-Command 'adb'
     $emulator = Require-Command 'emulator'
@@ -177,10 +185,11 @@ try {
         privacy = [ordered]@{ imageCopiedToRepository = $false; exifValuesIncluded = $false; sourcePathIncluded = $false }
     }
     $report | ConvertTo-Json -Depth 30 | Set-Content -LiteralPath (Join-Path $runDirectory 'report.json') -Encoding utf8
-    @(
+    $markdown = @(
         '# Privacy Stamp high-resolution acceptance', '',
         "- Result: **$result**", "- Repository HEAD: $head", "- Device: $Serial / $AvdName / ${RamMb}MB", "- Input: $($inputInfo.ImageWidth)x$($inputInfo.ImageHeight) ($inputPixels pixels)", "- Output: $($outputInfo.ImageWidth)x$($outputInfo.ImageHeight) ($outputPixels pixels)", "- Input GPS present: $inputHasGps", "- Output GPS present: $outputHasGps", '', '## Checks'
-    ) + @($checks | ForEach-Object { "- [$($_.status)] $($_.name): $($_.detail)" }) | Set-Content -LiteralPath (Join-Path $runDirectory 'report.md') -Encoding utf8
+    ) + @($checks | ForEach-Object { "- [$($_.status)] $($_.name): $($_.detail)" })
+    $markdown | Set-Content -LiteralPath (Join-Path $runDirectory 'report.md') -Encoding utf8
     Write-Host "Result: $result"
     Write-Host "Report: $(Join-Path $runDirectory 'report.md')"
 } finally {
