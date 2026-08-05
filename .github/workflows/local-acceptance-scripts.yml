@@ -1,0 +1,41 @@
+name: Local acceptance script validation
+
+on:
+  pull_request:
+    paths:
+      - 'tools/local_acceptance/**'
+      - 'docs/high-resolution-acceptance.md'
+      - '.github/workflows/local-acceptance-scripts.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'tools/local_acceptance/**'
+      - 'docs/high-resolution-acceptance.md'
+      - '.github/workflows/local-acceptance-scripts.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  parse-powershell:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Parse high-resolution acceptance runner
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            (Resolve-Path ./tools/local_acceptance/Invoke-PrivacyStampHighResolutionAcceptance.ps1),
+            [ref]$tokens,
+            [ref]$errors
+          ) | Out-Null
+          if ($errors.Count -gt 0) {
+            $errors | Format-List | Out-String | Write-Error
+            exit 1
+          }

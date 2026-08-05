@@ -43,3 +43,11 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Local high-resolution acceptance output and private source images.
+.acceptance/
+acceptance-results/
+*.private-image.jpg
+*.private-image.jpeg
+*.private-image.png
+*.private-image.webp
