@@ -90,12 +90,14 @@ Assert-True ($events -contains 'OutOfMemoryError') 'OOM not detected'
 Assert-True ($events -contains 'ANR') 'ANR not detected'
 Assert-True ($events -contains 'Fatal signal') 'Fatal signal not detected'
 
-$unrelated = Find-PrivacyStampFatalEvents `
-    -Lines @(
-        'E AndroidRuntime: FATAL EXCEPTION: main',
-        'E AndroidRuntime: Process: another.package, PID: 99'
-    ) `
-    -PackageName 'com.example.privacy_stamp'
+$unrelated = @(
+    Find-PrivacyStampFatalEvents `
+        -Lines @(
+            'E AndroidRuntime: FATAL EXCEPTION: main',
+            'E AndroidRuntime: Process: another.package, PID: 99'
+        ) `
+        -PackageName 'com.example.privacy_stamp'
+)
 Assert-Equal $unrelated.Count 0 'Unrelated package fatal event was not excluded'
 
 Assert-True (
