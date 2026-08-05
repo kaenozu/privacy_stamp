@@ -45,8 +45,8 @@ Future<AcceptanceImageMetadata> inspectAcceptanceImage(String path) async {
 
   if (format == 'JPEG') {
     final exif = image.decodeJpgExif(bytes);
-    metadataContainerPresent = exif != null && exif.isNotEmpty;
-    gpsPresent = exif != null && exif.gpsIfd.isNotEmpty;
+    metadataContainerPresent = exif != null && !exif.isEmpty;
+    gpsPresent = exif != null && exif.gpsIfd.data.isNotEmpty;
   } else if (format == 'PNG') {
     final result = _inspectPngMetadata(bytes);
     metadataContainerPresent = result.metadataContainerPresent;
@@ -116,7 +116,7 @@ _PngMetadataResult _inspectPngMetadata(Uint8List bytes) {
       metadataContainerPresent = true;
       try {
         final exif = image.ExifData.fromInputBuffer(image.InputBuffer(data));
-        gpsPresent = gpsPresent || exif.gpsIfd.isNotEmpty;
+        gpsPresent = gpsPresent || exif.gpsIfd.data.isNotEmpty;
       } on Object {
         // A malformed metadata container is still metadata. The output
         // acceptance rejects it through metadataContainerPresent.
