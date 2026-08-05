@@ -33,9 +33,19 @@ final class AcceptanceImageMetadata {
 
 Future<AcceptanceImageMetadata> inspectAcceptanceImage(String path) async {
   final bytes = await File(path).readAsBytes();
-  final decoder = image.findDecoderForData(bytes);
-  final info = decoder?.startDecode(bytes);
-  if (decoder == null || info == null) {
+  late final int width;
+  late final int height;
+  try {
+    final decoder = image.findDecoderForData(bytes);
+    final info = decoder?.startDecode(bytes);
+    if (decoder == null || info == null) {
+      throw const FormatException('Unsupported or corrupt image.');
+    }
+    width = info.width;
+    height = info.height;
+  } on FormatException {
+    rethrow;
+  } on Object {
     throw const FormatException('Unsupported or corrupt image.');
   }
 
@@ -44,9 +54,13 @@ Future<AcceptanceImageMetadata> inspectAcceptanceImage(String path) async {
   var metadataContainerPresent = false;
 
   if (format == 'JPEG') {
-    final exif = image.decodeJpgExif(bytes);
-    metadataContainerPresent = exif != null && !exif.isEmpty;
-    gpsPresent = exif != null && exif.gpsIfd.data.isNotEmpty;
+    try {
+      final exif = image.decodeJpgExif(bytes);
+      metadataContainerPresent = exif != null && !exif.isEmpty;
+      gpsPresent = exif != null && exif.gpsIfd.data.isNotEmpty;
+    } on Object {
+      throw const FormatException('Invalid JPEG metadata.');
+    }
   } else if (format == 'PNG') {
     final result = _inspectPngMetadata(bytes);
     metadataContainerPresent = result.metadataContainerPresent;
@@ -55,8 +69,8 @@ Future<AcceptanceImageMetadata> inspectAcceptanceImage(String path) async {
 
   return AcceptanceImageMetadata(
     format: format,
-    width: info.width,
-    height: info.height,
+    width: width,
+    height: height,
     gpsPresent: gpsPresent,
     metadataContainerPresent: metadataContainerPresent,
   );
