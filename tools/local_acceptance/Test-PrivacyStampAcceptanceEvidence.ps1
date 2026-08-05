@@ -82,9 +82,11 @@ $logcat = @(
     '08-05 10:02:00.000 F libc: Fatal signal 6 (SIGABRT), code -1 in tid 55',
     '08-05 10:02:00.001 F DEBUG: >>> com.example.privacy_stamp <<<'
 )
-$events = Find-PrivacyStampFatalEvents `
-    -Lines $logcat `
-    -PackageName 'com.example.privacy_stamp'
+$events = @(
+    Find-PrivacyStampFatalEvents `
+        -Lines $logcat `
+        -PackageName 'com.example.privacy_stamp'
+)
 Assert-True ($events -contains 'FATAL EXCEPTION') 'FATAL EXCEPTION not detected'
 Assert-True ($events -contains 'OutOfMemoryError') 'OOM not detected'
 Assert-True ($events -contains 'ANR') 'ANR not detected'
