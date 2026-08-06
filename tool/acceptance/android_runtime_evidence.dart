@@ -24,10 +24,7 @@ final class AcceptanceMemorySample {
   };
 }
 
-AcceptanceMemorySample parseDumpsysMeminfo(
-  String text, {
-  int? expectedPid,
-}) {
+AcceptanceMemorySample parseDumpsysMeminfo(String text, {int? expectedPid}) {
   final headerPid = RegExp(
     r'\*\*\s+MEMINFO\s+in\s+pid\s+(\d+)',
   ).firstMatch(text);
