@@ -23,6 +23,19 @@ void main() {
     expect(sample.nativeHeapKb, 3400);
   });
 
+  test('rejects a meminfo PID that differs from the monitored process', () {
+    const meminfo = '''
+** MEMINFO in pid 4322 [com.example.privacy_stamp] **
+ App Summary
+                TOTAL:     8,500                         12,600
+''';
+
+    expect(
+      () => parseDumpsysMeminfo(meminfo, expectedPid: 4321),
+      throwsFormatException,
+    );
+  });
+
   test('aggregates peaks and fails when the process restarts', () {
     const first = AcceptanceMemorySample(
       pid: 100,
@@ -66,6 +79,7 @@ void main() {
     const logcat = '''
 08-06 10:00:01.000  4321  4500 E AndroidRuntime: FATAL EXCEPTION: main
 08-06 10:00:01.010  4321  4500 E AndroidRuntime: java.lang.OutOfMemoryError
+08-06 10:00:01.020  4321  4500 W lmkd: killing process due to low memory
 08-06 10:00:02.000  9999  9999 E AndroidRuntime: FATAL EXCEPTION: unrelated
 ''';
 
@@ -77,7 +91,8 @@ void main() {
 
     expect(events, contains(AcceptanceRuntimeEventType.fatalException));
     expect(events, contains(AcceptanceRuntimeEventType.outOfMemory));
-    expect(events, hasLength(2));
+    expect(events, contains(AcceptanceRuntimeEventType.lowMemoryKill));
+    expect(events, hasLength(3));
   });
 
   test('detects package-level ANR, process death, and low-memory kill', () {
