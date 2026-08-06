@@ -28,7 +28,13 @@ AcceptanceMemorySample parseDumpsysMeminfo(String text, {int? expectedPid}) {
   final headerPid = RegExp(
     r'\*\*\s+MEMINFO\s+in\s+pid\s+(\d+)',
   ).firstMatch(text);
-  final pid = expectedPid ?? int.tryParse(headerPid?.group(1) ?? '');
+  final observedPid = int.tryParse(headerPid?.group(1) ?? '');
+  if (expectedPid != null &&
+      observedPid != null &&
+      expectedPid != observedPid) {
+    throw const FormatException('The meminfo process ID changed.');
+  }
+  final pid = expectedPid ?? observedPid;
   if (pid == null || pid <= 0) {
     throw const FormatException('A valid app process ID is required.');
   }
@@ -252,7 +258,7 @@ Set<AcceptanceRuntimeEventType> parseRuntimeEvents(
         (lower.contains('has died') || lower.contains('process died'))) {
       events.add(AcceptanceRuntimeEventType.processDeath);
     }
-    if (belongsToPackage &&
+    if (belongsToProcess &&
         (lower.contains('lmkd') || lower.contains('low memory')) &&
         (lower.contains('kill') || lower.contains('killing'))) {
       events.add(AcceptanceRuntimeEventType.lowMemoryKill);
