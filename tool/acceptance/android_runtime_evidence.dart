@@ -57,11 +57,14 @@ AcceptanceMemorySample parseDumpsysMeminfo(
     switch (label) {
       case 'Java Heap':
         javaHeapKb = firstValue;
+        break;
       case 'Native Heap':
         nativeHeapKb = firstValue;
+        break;
       case 'TOTAL':
         totalPssKb = firstValue;
         totalRssKb = lastValue;
+        break;
     }
   }
 
@@ -99,13 +102,16 @@ AcceptanceMemorySample parseDumpsysMeminfo(
   if (match == null) return null;
   final values = _numbers(match.group(2)!);
   if (values.isEmpty) return null;
-  return (match.group(1)!, values.first, values.length > 1 ? values.last : null);
+  final lastValue = values.length > 1 ? values.last : null;
+  return (match.group(1)!, values.first, lastValue);
 }
 
-List<int> _numbers(String value) => RegExp(r'\d[\d,]*')
-    .allMatches(value)
-    .map((match) => int.parse(match.group(0)!.replaceAll(',', '')))
-    .toList(growable: false);
+List<int> _numbers(String value) {
+  return RegExp(r'\d[\d,]*')
+      .allMatches(value)
+      .map((match) => int.parse(match.group(0)!.replaceAll(',', '')))
+      .toList(growable: false);
+}
 
 enum AcceptanceRuntimeEventType {
   fatalException,
@@ -159,7 +165,9 @@ final class AcceptanceRuntimeSummary {
       peakRss = _maxNullable(peakRss, sample.totalRssKb);
       peakJava = _maxNullable(peakJava, sample.javaHeapKb);
       peakNative = _maxNullable(peakNative, sample.nativeHeapKb);
-      if (previousPid != null && previousPid != sample.pid) restartCount += 1;
+      if (previousPid != null && previousPid != sample.pid) {
+        restartCount += 1;
+      }
       previousPid = sample.pid;
     }
 
@@ -198,9 +206,15 @@ final class AcceptanceRuntimeSummary {
     'peakNativeHeapKb': peakNativeHeapKb,
     'processRestartCount': processRestartCount,
     'processAliveAfterExport': processAliveAfterExport,
-    'events': events.map((event) => event.name).toList(growable: false)..sort(),
+    'events': _sortedEventNames(),
     'passed': passed,
   };
+
+  List<String> _sortedEventNames() {
+    final names = events.map((event) => event.name).toList(growable: false);
+    names.sort();
+    return names;
+  }
 }
 
 int? _maxNullable(int? current, int? candidate) {
