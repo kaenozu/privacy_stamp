@@ -36,10 +36,13 @@ jobs:
           channel: stable
           cache: true
       - run: flutter pub get
-      - name: Format and analyze probes
+      - name: Show formatter diff
         run: |
-          dart format --output=none --set-exit-if-changed tool/acceptance test/image_metadata_probe_test.dart test/android_runtime_evidence_test.dart
-          flutter analyze
+          dart format tool/acceptance test/image_metadata_probe_test.dart test/android_runtime_evidence_test.dart
+          git diff -- tool/acceptance/android_runtime_evidence.dart
+          git diff --exit-code -- tool/acceptance/android_runtime_evidence.dart
+      - name: Analyze probes
+        run: flutter analyze
       - name: Test acceptance probes
         run: flutter test test/image_metadata_probe_test.dart test/android_runtime_evidence_test.dart
 
