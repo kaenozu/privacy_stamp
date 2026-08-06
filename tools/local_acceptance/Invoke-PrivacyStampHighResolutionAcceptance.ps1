@@ -14,11 +14,19 @@ param(
     [switch]$SkipAvdCreation,
     [switch]$KeepAvdData,
     [switch]$RequireInputGps,
+    [switch]$AllowInputWithoutGps,
+    [string]$OrientationConfirmation,
+    [string]$MaskConfirmation,
+    [string]$PickerCancelConfirmation,
+    [string]$BackDiscardConfirmation,
+    [string]$LifecycleConfirmation,
+    [string]$TemporaryFilesConfirmation,
     [switch]$NonInteractive
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+Import-Module (Join-Path $PSScriptRoot 'PrivacyStampAcceptanceEvidence.psm1') -Force
 
 function Require-Command([string]$Name) {
     $command = Get-Command $Name -ErrorAction SilentlyContinue
@@ -30,7 +38,7 @@ function Run([string]$File, [string[]]$Args, [switch]$AllowFailure) {
     $lines = @(& $File @Args 2>&1 | ForEach-Object { "$_" })
     $exitCode = $LASTEXITCODE
     if ($exitCode -ne 0 -and -not $AllowFailure) {
-        throw "${File} exited with code ${exitCode}: $($lines -join ' ')"
+        throw "Command failed with exit code $exitCode."
     }
     [pscustomobject]@{
         ExitCode = $exitCode
@@ -53,10 +61,51 @@ function Wait-Boot([int]$TimeoutSeconds = 300) {
     throw "Emulator $Serial did not boot within $TimeoutSeconds seconds."
 }
 
-function DeviceFiles {
-    $script = 'for d in /sdcard/Download /sdcard/Pictures /sdcard/DCIM; do [ -d "$d" ] && find "$d" -type f 2>/dev/null; done | sort'
-    (Adb @('shell', 'sh', '-c', $script) -AllowFailure).Lines |
-        Where-Object { $_ -match '^/sdcard/' }
+function DeviceFileSnapshot {
+    $script = 'for d in /sdcard/Download /sdcard/Pictures /sdcard/DCIM; do if [ -d "$d" ]; then find "$d" -type f 2>/dev/null | while IFS= read -r f; do m=$(stat -c %Y "$f" 2>/dev/null || echo 0); s=$(stat -c %s "$f" 2>/dev/null || echo 0); printf "%s|%s|%s\n" "$m" "$s" "$f"; done; fi; done'
+    $lines = (Adb @('shell', 'sh', '-c', $script) -AllowFailure).Lines
+    ConvertFrom-PrivacyStampDeviceFileSnapshot -Lines $lines
+}
+
+function Get-SingleAppPid {
+    $pidText = (Adb @('shell', 'pidof', $PackageName) -AllowFailure).Text.Trim()
+    $pids = @($pidText -split '\s+' | Where-Object { $_ -match '^\d+$' })
+    if ($pids.Count -ne 1) {
+        throw 'Expected exactly one running app process.'
+    }
+    return [long]$pids[0]
+}
+
+function Get-CurrentMemorySample([long]$ExpectedPid) {
+    $pid = Get-SingleAppPid
+    if ($pid -ne $ExpectedPid) {
+        throw 'The app process ID changed during export acceptance.'
+    }
+    $meminfo = Adb @('shell', 'dumpsys', 'meminfo', $PackageName) -AllowFailure
+    if ($meminfo.ExitCode -ne 0) {
+        throw 'dumpsys meminfo failed during export acceptance.'
+    }
+    ConvertFrom-PrivacyStampMeminfoSample `
+        -Lines $meminfo.Lines `
+        -ExpectedPid $ExpectedPid
+}
+
+function Require-OperatorConfirmation(
+    [string]$Name,
+    [string]$Expected,
+    [string]$Provided,
+    [string]$Prompt
+) {
+    $actual = $Provided
+    if (-not $NonInteractive -and [string]::IsNullOrWhiteSpace($actual)) {
+        $actual = Read-Host $Prompt
+    }
+    if (-not (Test-PrivacyStampAcceptanceConfirmation `
+        -Actual ([string]$actual) `
+        -Expected $Expected)) {
+        throw "$Name requires an explicit operator confirmation."
+    }
+    return $true
 }
 
 function Get-ImageMetadata([string]$Path) {
@@ -114,6 +163,13 @@ if ($inputInfo.format -notin @('JPEG', 'PNG', 'WEBP')) {
     throw "Unsupported source image format for this acceptance: $($inputInfo.format)"
 }
 $inputHasGps = [bool]$inputInfo.gpsPresent
+$finalInputContract =
+    -not $AllowInputWithoutGps -and
+    $inputInfo.format -eq 'JPEG' -and
+    $inputHasGps
+if (-not $finalInputContract -and -not $AllowInputWithoutGps) {
+    throw 'Final acceptance requires a GPS-bearing JPEG input.'
+}
 if ($RequireInputGps -and -not $inputHasGps) {
     throw 'RequireInputGps was specified, but no GPS metadata was found.'
 }
@@ -129,6 +185,13 @@ $lockPath = Join-Path (
 $lock = $null
 $emulatorProcess = $null
 $checks = [System.Collections.Generic.List[object]]::new()
+$memorySamples = [System.Collections.Generic.List[object]]::new()
+$orientationConfirmed = $false
+$maskConfirmed = $false
+$pickerCancelConfirmed = $false
+$backDiscardConfirmed = $false
+$lifecycleConfirmed = $false
+$temporaryFilesConfirmed = $false
 $result = 'BLOCKER'
 
 function Check([string]$Name, [bool]$Passed, [string]$Detail) {
@@ -152,7 +215,7 @@ try {
             [System.IO.FileShare]::None
         )
     } catch {
-        throw "Another local acceptance run appears active: $lockPath"
+        throw 'Another local acceptance run appears active.'
     }
 
     $adb = Require-Command 'adb'
@@ -173,7 +236,7 @@ try {
                 & $avdmanager create avd --force --name $AvdName `
                     --package $SystemImage --device 'pixel_2' 2>&1
             if ($LASTEXITCODE -ne 0) {
-                throw "AVD creation failed: $create"
+                throw 'AVD creation failed.'
             }
         }
         $port = [int]($Serial -replace '^emulator-', '')
@@ -194,6 +257,13 @@ try {
     Wait-Boot
     Check 'Low-memory AVD' $true `
         "$AvdName booted with requested RAM $RamMb MB on $Serial."
+    Check 'Final input contract' $finalInputContract $(
+        if ($finalInputContract) {
+            'GPS-bearing JPEG input confirmed.'
+        } else {
+            'Exploratory input cannot produce a final PASS.'
+        }
+    )
 
     Adb @('logcat', '-c') | Out-Null
     if (-not $SkipBuild -and [string]::IsNullOrWhiteSpace($ApkPath)) {
@@ -214,7 +284,7 @@ try {
     }
     $ApkPath = [System.IO.Path]::GetFullPath($ApkPath)
     if (-not (Test-Path -LiteralPath $ApkPath)) {
-        throw "APK not found: $ApkPath"
+        throw 'APK was not found.'
     }
     Adb @('install', '-r', '-t', $ApkPath) | Out-Null
     Check 'APK install' $true 'APK installed successfully.'
@@ -222,49 +292,41 @@ try {
     $extension = [System.IO.Path]::GetExtension($input).ToLowerInvariant()
     $deviceInput = "/sdcard/Download/privacy-stamp-input$extension"
     Adb @('push', $input, $deviceInput) | Out-Null
-    $baseline = @(DeviceFiles)
-    $baseline | Set-Content -LiteralPath (
-        Join-Path $runDirectory 'device-files-before.txt'
-    ) -Encoding utf8
+    $baseline = @(DeviceFileSnapshot)
 
     Adb @('shell', 'am', 'force-stop', $PackageName) | Out-Null
+    Adb @('logcat', '-c') | Out-Null
     Adb @(
         'shell', 'monkey', '-p', $PackageName,
         '-c', 'android.intent.category.LAUNCHER', '1'
     ) | Out-Null
     Start-Sleep -Seconds 2
+    $exportPid = Get-SingleAppPid
+    [void]$memorySamples.Add((Get-CurrentMemorySample -ExpectedPid $exportPid))
 
     if (-not $NonInteractive) {
         Write-Host ''
         Write-Host `
-            "Select $deviceInput in Privacy Stamp, add a visible mask, and export the PNG." `
+            'Cancel the picker once, reopen it, select the private image, verify orientation, add a visible mask, test back/discard, then export.' `
             -ForegroundColor Cyan
         Write-Host `
-            'Save into Download, Pictures, or DCIM. The script detects and verifies the new file.' `
+            'Save into Download, Pictures, or DCIM. The script detects exactly one new or modified PNG.' `
             -ForegroundColor Cyan
     }
 
     $outputDevicePath = $ExpectedOutputDevicePath
     $deadline = (Get-Date).AddSeconds($OutputWaitSeconds)
     do {
-        if ($outputDevicePath) {
-            $exists = (
-                Adb @('shell', 'test', '-f', $outputDevicePath) -AllowFailure
-            ).ExitCode -eq 0
-            if ($exists) { break }
-        } else {
-            $current = @(DeviceFiles)
-            $candidate = $current |
-                Where-Object {
-                    $_ -notin $baseline -and
-                    $_ -ne $deviceInput -and
-                    $_ -match '(?i)\.png$'
-                } |
-                Select-Object -Last 1
-            if ($candidate) {
-                $outputDevicePath = $candidate
-                break
-            }
+        [void]$memorySamples.Add((Get-CurrentMemorySample -ExpectedPid $exportPid))
+        $current = @(DeviceFileSnapshot)
+        $candidate = Select-PrivacyStampExportCandidate `
+            -Baseline $baseline `
+            -Current $current `
+            -InputDevicePath $deviceInput `
+            -ExpectedOutputDevicePath $ExpectedOutputDevicePath
+        if ($null -ne $candidate) {
+            $outputDevicePath = $candidate.Path
+            break
         }
         Start-Sleep -Seconds 2
     } while ((Get-Date) -lt $deadline)
@@ -272,45 +334,112 @@ try {
     if (-not $outputDevicePath) {
         throw "No exported PNG was detected within $OutputWaitSeconds seconds."
     }
+    [void]$memorySamples.Add((Get-CurrentMemorySample -ExpectedPid $exportPid))
+    $processAliveAfterExport = (Get-SingleAppPid) -eq $exportPid
+
+    $runtimeLogcat = Adb @('logcat', '-d', '-v', 'threadtime')
+    $runtimeLogcat.Lines | Set-Content -LiteralPath (
+        Join-Path $runDirectory 'runtime-logcat.txt'
+    ) -Encoding utf8
+    $runtimeEvents = @(
+        Find-PrivacyStampFatalEvents `
+            -Lines $runtimeLogcat.Lines `
+            -PackageName $PackageName `
+            -MonitoredPids @($exportPid)
+    )
 
     $pulled = Join-Path $runDirectory 'exported-output.png'
     Adb @('pull', $outputDevicePath, $pulled) | Out-Null
     $outputInfo = Get-ImageMetadata $pulled
     $outputPixels = [long]$outputInfo.pixels
     $outputHasGps = [bool]$outputInfo.gpsPresent
-    $outputHasMetadata = [bool]$outputInfo.metadataContainerPresent
+    $outputHasSensitiveMetadata = [bool]$outputInfo.metadataContainerPresent
 
     Check 'Output format' ($outputInfo.format -eq 'PNG') `
         "format=$($outputInfo.format)"
     Check 'Resolution preserved' ($outputPixels -eq $inputPixels) `
         "inputPixels=$inputPixels outputPixels=$outputPixels"
-    Check 'GPS removed' (-not $outputHasGps) `
+    Check 'GPS removed' ($inputHasGps -and -not $outputHasGps) `
         "inputHadGps=$inputHasGps outputHasGps=$outputHasGps"
-    Check 'Metadata container removed' (-not $outputHasMetadata) `
-        "outputMetadataContainerPresent=$outputHasMetadata"
+    Check 'Sensitive PNG metadata absent' (-not $outputHasSensitiveMetadata) `
+        'No eXIf, tEXt, iTXt, or zTXt metadata container was detected.'
 
-    $meminfo = Adb @('shell', 'dumpsys', 'meminfo', $PackageName) `
-        -AllowFailure
-    $meminfo.Lines | Set-Content -LiteralPath (
-        Join-Path $runDirectory 'meminfo.txt'
+    $orientationConfirmed = Require-OperatorConfirmation `
+        -Name 'Orientation review' `
+        -Expected 'ORIENTATION_OK' `
+        -Provided $OrientationConfirmation `
+        -Prompt 'Type ORIENTATION_OK only after confirming the displayed orientation.'
+    Check 'Orientation reviewed' $orientationConfirmed `
+        'Operator confirmed orientation without recording image content.'
+
+    $maskConfirmed = Require-OperatorConfirmation `
+        -Name 'Visible mask review' `
+        -Expected 'MASK_OK' `
+        -Provided $MaskConfirmation `
+        -Prompt 'Type MASK_OK only after confirming visible mask burn-in in the export.'
+    Check 'Visible mask reviewed' $maskConfirmed `
+        'Operator confirmed visible mask burn-in.'
+
+    $pickerCancelConfirmed = Require-OperatorConfirmation `
+        -Name 'Picker cancel review' `
+        -Expected 'PICKER_CANCEL_OK' `
+        -Provided $PickerCancelConfirmation `
+        -Prompt 'Type PICKER_CANCEL_OK only after completing the picker cancel scenario.'
+    Check 'Picker cancel reviewed' $pickerCancelConfirmed `
+        'Operator confirmed picker cancel without crash or stale update.'
+
+    $backDiscardConfirmed = Require-OperatorConfirmation `
+        -Name 'Back/discard review' `
+        -Expected 'BACK_DISCARD_OK' `
+        -Provided $BackDiscardConfirmation `
+        -Prompt 'Type BACK_DISCARD_OK only after completing back/discard and returning safely.'
+    Check 'Back/discard reviewed' $backDiscardConfirmed `
+        'Operator confirmed back/discard lifecycle behavior.'
+
+    $temporaryFilesConfirmed = Require-OperatorConfirmation `
+        -Name 'Temporary file review' `
+        -Expected 'TEMP_FILES_OK' `
+        -Provided $TemporaryFilesConfirmation `
+        -Prompt 'Type TEMP_FILES_OK only after confirming no orphan temporary files remained.'
+    Check 'Temporary files reviewed' $temporaryFilesConfirmed `
+        'Operator confirmed no orphan temporary files were observed.'
+
+    Adb @('shell', 'am', 'force-stop', $PackageName) | Out-Null
+    Adb @('logcat', '-c') | Out-Null
+    Adb @(
+        'shell', 'monkey', '-p', $PackageName,
+        '-c', 'android.intent.category.LAUNCHER', '1'
+    ) | Out-Null
+    Start-Sleep -Seconds 2
+    $restartedPid = Get-SingleAppPid
+    $lifecycleLogcat = Adb @('logcat', '-d', '-v', 'threadtime')
+    $lifecycleLogcat.Lines | Set-Content -LiteralPath (
+        Join-Path $runDirectory 'lifecycle-logcat.txt'
     ) -Encoding utf8
-    $logcat = Adb @('logcat', '-d', '-v', 'threadtime') -AllowFailure
-    $logcat.Lines | Set-Content -LiteralPath (
-        Join-Path $runDirectory 'logcat.txt'
-    ) -Encoding utf8
-    $fatal = @(
-        $logcat.Lines |
-            Where-Object {
-                $_ -match [regex]::Escape($PackageName) -and
-                $_ -match 'FATAL EXCEPTION|ANR in|OutOfMemoryError|Fatal signal'
-            }
+    $lifecycleEvents = @(
+        Find-PrivacyStampFatalEvents `
+            -Lines $lifecycleLogcat.Lines `
+            -PackageName $PackageName `
+            -MonitoredPids @($restartedPid)
     )
-    Check 'Crash/ANR/OOM' ($fatal.Count -eq 0) $(
-        if ($fatal.Count -eq 0) {
-            'No matching fatal event.'
-        } else {
-            $fatal -join ' | '
-        }
+    Check 'Lifecycle relaunch' ($restartedPid -gt 0) `
+        'App process restarted after deliberate force-stop.'
+
+    $lifecycleConfirmed = Require-OperatorConfirmation `
+        -Name 'Relaunch review' `
+        -Expected 'LIFECYCLE_OK' `
+        -Provided $LifecycleConfirmation `
+        -Prompt 'Type LIFECYCLE_OK only after confirming clean relaunch without stale UI.'
+    Check 'Relaunch reviewed' $lifecycleConfirmed `
+        'Operator confirmed clean relaunch.'
+
+    $allEvents = @($runtimeEvents + $lifecycleEvents | Sort-Object -Unique)
+    $runtimeSummary = Get-PrivacyStampRuntimeSummary `
+        -Samples @($memorySamples) `
+        -Events $allEvents `
+        -ProcessAliveAfterExport $processAliveAfterExport
+    Check 'Runtime evidence' $runtimeSummary.Passed $(
+        "samples=$($runtimeSummary.SampleCount) restarts=$($runtimeSummary.ProcessRestartCount) aliveAfterExport=$($runtimeSummary.ProcessAliveAfterExport) events=$($runtimeSummary.Events -join ',')"
     )
 
     $failed = @($checks | Where-Object { $_.status -eq 'FAIL' })
@@ -326,6 +455,17 @@ try {
             avd = $AvdName
             requestedRamMb = $RamMb
         }
+        runtime = [ordered]@{
+            sampleCount = $runtimeSummary.SampleCount
+            peakTotalPssKb = $runtimeSummary.PeakTotalPssKb
+            peakTotalRssKb = $runtimeSummary.PeakTotalRssKb
+            peakJavaHeapKb = $runtimeSummary.PeakJavaHeapKb
+            peakNativeHeapKb = $runtimeSummary.PeakNativeHeapKb
+            processRestartCount = $runtimeSummary.ProcessRestartCount
+            processAliveAfterExport = $runtimeSummary.ProcessAliveAfterExport
+            eventTypes = @($runtimeSummary.Events)
+            rawLogsIncluded = $false
+        }
         input = [ordered]@{
             bytes = (Get-Item -LiteralPath $input).Length
             width = $inputInfo.width
@@ -333,6 +473,7 @@ try {
             pixels = $inputPixels
             format = $inputInfo.format
             gpsPresent = $inputHasGps
+            finalContract = $finalInputContract
             pathIncluded = $false
         }
         output = [ordered]@{
@@ -341,14 +482,26 @@ try {
             pixels = $outputPixels
             format = $outputInfo.format
             gpsPresent = $outputHasGps
-            metadataContainerPresent = $outputHasMetadata
+            sensitiveMetadataPresent = $outputHasSensitiveMetadata
+            metadataContract = 'No eXIf, tEXt, iTXt, or zTXt chunks'
             devicePathIncluded = $false
         }
         checks = @($checks)
+        humanEvidence = [ordered]@{
+            orientationReviewed = $orientationConfirmed
+            visibleMaskReviewed = $maskConfirmed
+            pickerCancelReviewed = $pickerCancelConfirmed
+            backDiscardReviewed = $backDiscardConfirmed
+            relaunchReviewed = $lifecycleConfirmed
+            temporaryFilesReviewed = $temporaryFilesConfirmed
+            confirmationTokensIncluded = $false
+        }
         privacy = [ordered]@{
             imageCommittedToRepository = $false
             exifValuesIncluded = $false
             sourcePathIncluded = $false
+            devicePathsIncluded = $false
+            deviceSnapshotPersisted = $false
         }
     }
     $report | ConvertTo-Json -Depth 30 | Set-Content -LiteralPath (
@@ -360,11 +513,18 @@ try {
         "- Result: **$result**",
         "- Repository HEAD: $head",
         "- Device: $Serial / $AvdName / ${RamMb}MB",
-        "- Input: $($inputInfo.width)x$($inputInfo.height) ($inputPixels pixels)",
+        "- Input: $($inputInfo.width)x$($inputInfo.height) ($inputPixels pixels, GPS JPEG=$finalInputContract)",
         "- Output: $($outputInfo.width)x$($outputInfo.height) ($outputPixels pixels)",
-        "- Input GPS present: $inputHasGps",
-        "- Output GPS present: $outputHasGps",
-        "- Output metadata container present: $outputHasMetadata",
+        "- Runtime samples: $($runtimeSummary.SampleCount)",
+        "- Peak TOTAL PSS/RSS: $($runtimeSummary.PeakTotalPssKb) / $($runtimeSummary.PeakTotalRssKb) kB",
+        "- Process restarts during export: $($runtimeSummary.ProcessRestartCount)",
+        "- Runtime events: $($runtimeSummary.Events -join ',')",
+        "- Orientation reviewed: $orientationConfirmed",
+        "- Visible mask reviewed: $maskConfirmed",
+        "- Picker cancel reviewed: $pickerCancelConfirmed",
+        "- Back/discard reviewed: $backDiscardConfirmed",
+        "- Relaunch reviewed: $lifecycleConfirmed",
+        "- Temporary files reviewed: $temporaryFilesConfirmed",
         '',
         '## Checks'
     ) + @(
