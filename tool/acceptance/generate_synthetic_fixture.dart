@@ -67,8 +67,7 @@ _SyntheticColor _pixelColor(int width, int height, int x, int y) {
   final isTopLeft = x < cornerSize && y < cornerSize;
   final isTopRight = x >= width - cornerSize && y < cornerSize;
   final isBottomLeft = x < cornerSize && y >= height - cornerSize;
-  final isBottomRight =
-      x >= width - cornerSize && y >= height - cornerSize;
+  final isBottomRight = x >= width - cornerSize && y >= height - cornerSize;
 
   if (isTopLeft) {
     return const _SyntheticColor(240, 60, 60);
@@ -83,8 +82,7 @@ _SyntheticColor _pixelColor(int width, int height, int x, int y) {
   final centerX = width ~/ 2;
   final centerY = height ~/ 2;
   final inCenterBandX =
-      x >= centerX - centerBandWidth ~/ 2 &&
-      x < centerX + centerBandWidth ~/ 2;
+      x >= centerX - centerBandWidth ~/ 2 && x < centerX + centerBandWidth ~/ 2;
   final inCenterBandY =
       y >= centerY - centerBandHeight ~/ 2 &&
       y < centerY + centerBandHeight ~/ 2;
