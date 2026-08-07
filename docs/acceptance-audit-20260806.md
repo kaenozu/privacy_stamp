@@ -73,3 +73,84 @@ repository-external GPS-bearing JPEG and complete every confirmation token only
 after the corresponding UI action is observed. Record only the resulting
 privacy-safe `PASS` or `BLOCKER` summary; keep Issue #12 open until all PASS
 criteria are evidenced.
+
+## Issue #12 local Android acceptance attempt — 2026-08-07
+
+### Baseline
+
+- Exact main SHA: `3bf624c8a95aec10556147dd3b4fc6e44feba219`
+- Acceptance branch SHA: `a9ed64935268c5c5ace23290b83a96fabf5fbfeb`
+- Runner SHA: `a9ed64935268c5c5ace23290b83a96fabf5fbfeb`
+- Android API: 35
+- AVD RAM: 1536 MB (configured; AVD not created because the run was blocked)
+- Flutter: 3.44.0 (stable)
+- Dart: 3.12.0
+- Java: OpenJDK 17.0.19 (Temurin)
+
+### Input contract
+
+- Format: JPEG (required contract)
+- Pixel dimensions: not evaluated (no private input available)
+- Pixel count: not evaluated
+- GPS present before export: not evaluated
+- Private path recorded: false
+
+### Output contract
+
+- Format: not evaluated
+- Pixel dimensions: not evaluated
+- Pixel count matches input: not evaluated
+- GPS present after export: not evaluated
+- Sensitive metadata present: not evaluated
+- Output candidates: not evaluated
+- Source overwritten: not evaluated
+
+### Runtime evidence
+
+- Memory samples: not evaluated
+- Peak total PSS: not evaluated
+- Peak total RSS: not evaluated
+- Peak Java heap: not evaluated
+- Peak native heap: not evaluated
+- Process restart count: not evaluated
+- Process alive after export: not evaluated
+- OOM: not evaluated
+- ANR: not evaluated
+- Fatal exception: not evaluated
+- Fatal signal: not evaluated
+- Process death: not evaluated
+- Low-memory kill: not evaluated
+
+### Human UI assertions
+
+- Orientation: not evaluated
+- Pan/zoom: not evaluated
+- Center mask: not evaluated
+- Edge mask: not evaluated
+- Mask move/resize: not evaluated
+- Visible mask burn-in: not evaluated
+- Picker cancel: not evaluated
+- Back/discard: not evaluated
+- Force-stop/relaunch: not evaluated
+- Stale callback: not evaluated
+- Orphan temporary files: not evaluated
+
+### Quality gates (executed before the private-input gate)
+
+- PowerShell syntax: PASS (all three runner files parsed with `Set-StrictMode`)
+- Synthetic helper tests: PASS (`Test-PrivacyStampAcceptanceEvidence.ps1`)
+- Dart format: PASS (23 files inspected, 0 changed)
+- Flutter analyze: PASS (`flutter analyze --fatal-infos`, no issues)
+- Flutter tests: PASS (59 passed, 0 failed, 0 skipped)
+- Android debug build: NOT RUN (blocked at private-input gate)
+- Git diff check: PASS (no whitespace errors)
+
+### Decision
+
+- **BLOCKER: valid private input unavailable** — the operator reported no
+  repository-external GPS-bearing 48MP-or-larger JPEG was available for this
+  attempt. No image was copied into the repository, and no AVD was created or
+  driven.
+- Residual risks: all Issue #12 runtime, UI, lifecycle, and output criteria
+  remain unevidenced; the low-memory AVD and Android UI interaction were not
+  exercised in this attempt.
