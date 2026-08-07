@@ -148,6 +148,26 @@ class StampController extends ChangeNotifier {
     history: SharedPreferencesExportHistory(),
   );
 
+  factory StampController.testInstance() => StampController(
+    picker: const _TestImagePickerGateway(),
+    detector: DetectionServiceGateway(),
+    exporter: const RedactionExporter().encodeAsync,
+    saver: const _TestImageSaverGateway(),
+    history: SharedPreferencesExportHistory(),
+  );
+
+  void loadImageForTesting(Uint8List bytes, String name, PixelSize imageSize) {
+    if (_disposed) return;
+    _bytes = bytes;
+    _fileName = name;
+    _imageSize = imageSize;
+    _detections = const [];
+    _manualStamps = const [];
+    _pickFailure = null;
+    _busy = false;
+    notifyListeners();
+  }
+
   final ImagePickerGateway picker;
   final DetectionGateway detector;
   final RedactionEncoder exporter;
@@ -383,4 +403,18 @@ class StampController extends ChangeNotifier {
     ++_generation;
     super.dispose();
   }
+}
+
+class _TestImagePickerGateway implements ImagePickerGateway {
+  const _TestImagePickerGateway();
+
+  @override
+  Future<PickedImage?> pick() async => null;
+}
+
+class _TestImageSaverGateway implements ImageSaverGateway {
+  const _TestImageSaverGateway();
+
+  @override
+  Future<bool> save(Uint8List bytes, {required String fileName}) async => true;
 }
