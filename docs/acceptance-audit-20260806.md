@@ -82,7 +82,7 @@ criteria are evidenced.
 - Acceptance branch SHA: `a9ed64935268c5c5ace23290b83a96fabf5fbfeb`
 - Runner SHA: `a9ed64935268c5c5ace23290b83a96fabf5fbfeb`
 - Android API: 35
-- AVD RAM: 1536 MB (configured; AVD not created because the run was blocked)
+- AVD RAM: 1536 MB (planned; AVD not created because the run was blocked)
 - Flutter: 3.44.0 (stable)
 - Dart: 3.12.0
 - Java: OpenJDK 17.0.19 (Temurin)
@@ -107,6 +107,7 @@ criteria are evidenced.
 
 ### Runtime evidence
 
+- Monitored PID: not evaluated
 - Memory samples: not evaluated
 - Peak total PSS: not evaluated
 - Peak total RSS: not evaluated
