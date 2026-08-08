@@ -72,6 +72,32 @@ class _StampHomePageState extends State<StampHomePage> {
   }
 
   Future<void> _export() async {
+    if (_controller.stamps.isEmpty) {
+      _notice('隠す領域を追加してください');
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('書き出す前に確認してください'),
+        content: const Text(
+          '自動検出は未実装です。隠し忘れがないか、画像全体を確認してから書き出してください。',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('戻って確認する'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('確認して書き出す'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted || confirmed != true) return;
+
     final result = await _controller.exportImage();
     if (!mounted) return;
     switch (result) {
