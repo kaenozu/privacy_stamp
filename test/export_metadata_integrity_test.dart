@@ -55,34 +55,36 @@ void main() {
       expect(decoded.height, 8000);
     });
 
-    test('burns mask pixels into output and leaves unmasked pixels intact',
-        () async {
-      final source = await generateSyntheticHighResolutionJpeg();
-      final exporter = RedactionExporter();
+    test(
+      'burns mask pixels into output and leaves unmasked pixels intact',
+      () async {
+        final source = await generateSyntheticHighResolutionJpeg();
+        final exporter = RedactionExporter();
 
-      final maskRect = const NormalizedRect(.4, .4, .2, .2);
-      final output = exporter.encode(source, [
-        Stamp(id: 'mask', rect: maskRect, kind: 'black'),
-      ]);
+        final maskRect = const NormalizedRect(.4, .4, .2, .2);
+        final output = exporter.encode(source, [
+          Stamp(id: 'mask', rect: maskRect, kind: 'black'),
+        ]);
 
-      final decoded = img.decodePng(output)!;
-      final layout = ImageDisplayLayout.contain(
-        imageSize: const PixelSize(6000, 8000),
-        canvasSize: const Size(6000, 8000),
-      );
+        final decoded = img.decodePng(output)!;
+        final layout = ImageDisplayLayout.contain(
+          imageSize: const PixelSize(6000, 8000),
+          canvasSize: const Size(6000, 8000),
+        );
 
-      final maskPixels = layout.pixelRectFromNormalized(maskRect);
-      final centerX = maskPixels.left + maskPixels.width ~/ 2;
-      final centerY = maskPixels.top + maskPixels.height ~/ 2;
-      final maskPixel = decoded.getPixel(centerX, centerY);
-      expect(maskPixel.r, 0);
-      expect(maskPixel.g, 0);
-      expect(maskPixel.b, 0);
-      expect(maskPixel.a, 255);
+        final maskPixels = layout.pixelRectFromNormalized(maskRect);
+        final centerX = maskPixels.left + maskPixels.width ~/ 2;
+        final centerY = maskPixels.top + maskPixels.height ~/ 2;
+        final maskPixel = decoded.getPixel(centerX, centerY);
+        expect(maskPixel.r, 0);
+        expect(maskPixel.g, 0);
+        expect(maskPixel.b, 0);
+        expect(maskPixel.a, 255);
 
-      final outsidePixel = decoded.getPixel(100, 100);
-      expect(outsidePixel.a, 255);
-    });
+        final outsidePixel = decoded.getPixel(100, 100);
+        expect(outsidePixel.a, 255);
+      },
+    );
 
     test('does not modify source bytes', () async {
       final source = await generateSyntheticHighResolutionJpeg();
@@ -96,30 +98,33 @@ void main() {
       expect(_sha256(source), equals(sourceHash));
     });
 
-    test('output filename follows privacy-stamped-<original>.png rule', () async {
-      final saver = _RecordingSaver();
-      final controller = _Controller(saver: saver);
-      await controller.pickImage();
-      controller.addManualStamp();
+    test(
+      'output filename follows privacy-stamped-<original>.png rule',
+      () async {
+        final saver = _RecordingSaver();
+        final controller = _Controller(saver: saver);
+        await controller.pickImage();
+        controller.addManualStamp();
 
-      final result = await controller.exportImage();
+        final result = await controller.exportImage();
 
-      expect(result, ExportResult.exported);
-      expect(saver.calls, 1);
-      expect(saver.lastFileName, 'privacy-stamped-source.png.png');
-    });
+        expect(result, ExportResult.exported);
+        expect(saver.calls, 1);
+        expect(saver.lastFileName, 'privacy-stamped-source.png.png');
+      },
+    );
   });
 }
 
 class _Controller extends StampController {
   _Controller({ImageSaverGateway? saver})
-      : super(
-          picker: const _Picker(),
-          detector: const _Detector(),
-          exporter: (source, stamps) => Uint8List.fromList(<int>[1]),
-          saver: saver ?? _Saver(),
-          history: const _History(),
-        );
+    : super(
+        picker: const _Picker(),
+        detector: const _Detector(),
+        exporter: (source, stamps) => Uint8List.fromList(<int>[1]),
+        saver: saver ?? _Saver(),
+        history: const _History(),
+      );
 }
 
 class _Picker implements ImagePickerGateway {
@@ -127,10 +132,10 @@ class _Picker implements ImagePickerGateway {
 
   @override
   Future<PickedImage?> pick() async => const PickedImage(
-        bytes: <int>[1, 2, 3],
-        name: 'source.png',
-        imageSize: PixelSize(10, 10),
-      );
+    bytes: <int>[1, 2, 3],
+    name: 'source.png',
+    imageSize: PixelSize(10, 10),
+  );
 }
 
 class _Detector implements DetectionGateway {

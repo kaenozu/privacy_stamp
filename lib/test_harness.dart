@@ -27,7 +27,9 @@ class _TestHarnessState extends State<TestHarness> {
 
   Future<void> _loadFixture() async {
     try {
-      final bytes = await rootBundle.load('test/fixtures/synthetic-high-res-avd.jpg');
+      final bytes = await rootBundle.load(
+        'test/fixtures/synthetic-high-res-avd.jpg',
+      );
       final data = bytes.buffer.asUint8List();
       final size = const PixelSize(1920, 1080);
       _controller.loadImageForTesting(data, 'synthetic-high-res-avd.jpg', size);
@@ -49,9 +51,7 @@ class _TestHarnessState extends State<TestHarness> {
   Widget build(BuildContext context) {
     if (_error != null) {
       return MaterialApp(
-        home: Scaffold(
-          body: Center(child: Text('Harness error: $_error')),
-        ),
+        home: Scaffold(body: Center(child: Text('Harness error: $_error'))),
       );
     }
     return widget.child;

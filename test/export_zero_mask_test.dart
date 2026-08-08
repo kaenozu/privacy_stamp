@@ -20,7 +20,9 @@ void main() {
       expect(controller.exportCount, 0);
     });
 
-    testWidgets('shows unavailable guidance when no masks exist', (tester) async {
+    testWidgets('shows unavailable guidance when no masks exist', (
+      tester,
+    ) async {
       await tester.binding.setSurfaceSize(const Size(1080, 2400));
 
       final controller = _Controller();
@@ -45,13 +47,13 @@ void main() {
 
 class _Controller extends StampController {
   _Controller({ImageSaverGateway? saver})
-      : super(
-          picker: const _Picker(),
-          detector: const _Detector(),
-          exporter: (source, stamps) => Uint8List.fromList(<int>[1]),
-          saver: saver ?? _Saver(),
-          history: const _History(),
-        );
+    : super(
+        picker: const _Picker(),
+        detector: const _Detector(),
+        exporter: (source, stamps) => Uint8List.fromList(<int>[1]),
+        saver: saver ?? _Saver(),
+        history: const _History(),
+      );
 }
 
 class _Picker implements ImagePickerGateway {
@@ -59,10 +61,10 @@ class _Picker implements ImagePickerGateway {
 
   @override
   Future<PickedImage?> pick() async => const PickedImage(
-        bytes: <int>[1, 2, 3],
-        name: 'source.png',
-        imageSize: PixelSize(10, 10),
-      );
+    bytes: <int>[1, 2, 3],
+    name: 'source.png',
+    imageSize: PixelSize(10, 10),
+  );
 }
 
 class _Detector implements DetectionGateway {
