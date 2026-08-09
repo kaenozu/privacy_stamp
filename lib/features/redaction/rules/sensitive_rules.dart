@@ -9,7 +9,8 @@ class SensitiveRuleEngine {
   static final _coordinate = RegExp(
     r'(?<!\d)([-+]?\d{1,3}\.\d{3,})\s*[,/ ]\s*([-+]?\d{1,3}\.\d{3,})(?!\d)',
   );
-  static final _digits = RegExp(r'(?<!\d)\d{13,19}(?!\d)');
+  static final _cardCandidate = RegExp(r'(?<!\d)\d[\d -]{11,35}\d(?!\d)');
+  static final _cardSeparators = RegExp(r'[- ]');
   static final _labels = RegExp(
     r'(氏名|名前|お名前|宛名|住所|配送先|送付先|お届け先|口座番号|会員番号|顧客番号|注文番号|予約番号|受付番号|追跡番号)\s*[:：]?\s*(\S+)',
   );
@@ -55,8 +56,9 @@ class SensitiveRuleEngine {
           )) {
         add(DetectionKind.coordinate, '緯度・経度');
       }
-      for (final match in _digits.allMatches(text)) {
-        if (_passesLuhn(match.group(0)!)) {
+      for (final match in _cardCandidate.allMatches(text)) {
+        final digits = match.group(0)!.replaceAll(_cardSeparators, '');
+        if (digits.length >= 13 && digits.length <= 19 && _passesLuhn(digits)) {
           add(DetectionKind.card, 'カード番号候補');
         }
       }

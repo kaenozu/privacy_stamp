@@ -45,11 +45,20 @@ jobs:
             shift
             local log=".ci-logs/${name}.log"
             local command_text="$*"
+            local gate_status
 
             echo "::group::${name}"
             echo "Running: ${command_text}"
+
+            # GitHub invokes bash with `-e`. Disable errexit only around the
+            # command pipeline so a failed gate can be recorded and the
+            # remaining gates can still run. The final overall status remains
+            # non-zero when any gate failed.
+            set +e
             "$@" 2>&1 | tee "${log}"
-            local gate_status=${PIPESTATUS[0]}
+            gate_status=${PIPESTATUS[0]}
+            set -e
+
             echo "Exit code: ${gate_status}"
             echo "::endgroup::"
             printf '%s\t%s\t%s\n' "${name}" "${gate_status}" "${command_text}" >> .ci-logs/gates.tsv

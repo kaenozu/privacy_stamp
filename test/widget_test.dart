@@ -73,6 +73,68 @@ void main() {
     await tester.pump();
     expect(find.text('0 件のマスク'), findsOneWidget);
   });
+
+  testWidgets('export review cancellation does not save the image', (
+    tester,
+  ) async {
+    const reviewMessage =
+        '自動検出は未実装です。隠し忘れがないか、'
+        '画像全体を確認してから書き出してください。';
+    final saver = _FakeSaver();
+    final controller = StampController(
+      picker: _FakePicker(),
+      detector: _FakeDetector(),
+      exporter: (source, stamps) => Uint8List.fromList([1]),
+      saver: saver,
+      history: _FakeHistory(),
+    );
+    await tester.pumpWidget(
+      PrivacyStampApp(home: StampHomePage(controller: controller)),
+    );
+    await controller.pickImage();
+    controller.addManualStamp();
+    await tester.pump();
+
+    await tester.ensureVisible(find.text('書き出す'));
+    await tester.tap(find.text('書き出す'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('書き出す前に確認してください'), findsOneWidget);
+    expect(find.text(reviewMessage), findsOneWidget);
+
+    await tester.tap(find.text('戻って確認する'));
+    await tester.pumpAndSettle();
+
+    expect(saver.saveCount, 0);
+  });
+
+  testWidgets('export starts only after explicit review confirmation', (
+    tester,
+  ) async {
+    final saver = _FakeSaver();
+    final controller = StampController(
+      picker: _FakePicker(),
+      detector: _FakeDetector(),
+      exporter: (source, stamps) => Uint8List.fromList([1]),
+      saver: saver,
+      history: _FakeHistory(),
+    );
+    await tester.pumpWidget(
+      PrivacyStampApp(home: StampHomePage(controller: controller)),
+    );
+    await controller.pickImage();
+    controller.addManualStamp();
+    await tester.pump();
+
+    await tester.ensureVisible(find.text('書き出す'));
+    await tester.tap(find.text('書き出す'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('確認して書き出す'));
+    await tester.pumpAndSettle();
+
+    expect(saver.saveCount, 1);
+    expect(find.textContaining('元画像とは別のPNG'), findsOneWidget);
+  });
 }
 
 class _FakePicker implements ImagePickerGateway {
@@ -91,8 +153,13 @@ class _FakeDetector implements DetectionGateway {
 }
 
 class _FakeSaver implements ImageSaverGateway {
+  int saveCount = 0;
+
   @override
-  Future<bool> save(Uint8List bytes, {required String fileName}) async => true;
+  Future<bool> save(Uint8List bytes, {required String fileName}) async {
+    saveCount++;
+    return true;
+  }
 }
 
 class _FakeHistory implements ExportHistoryGateway {
