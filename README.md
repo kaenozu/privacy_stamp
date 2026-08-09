@@ -111,6 +111,11 @@ Production work includes implementing and validating platform detector adapters;
 making every automatic result reviewable with clear confidence and coverage
 states; re-inspecting exported pixels; adding real Android and browser tests;
 auditing network egress, storage, permissions, metadata, manifests, and
-dependency licenses; configuring the final application ID and release signing;
-and deciding the billing, share, update, rollback, support, and incident
+dependency licenses; finishing the release signing on a release machine; and
+deciding the billing, share, update, rollback, support, and incident
 response policies. None of those steps is implied by a passing CI build.
+
+The application ID (`com.privacy_stamp`) and app label ("Privacy Stamp") are
+now final, and the release-signing wiring plus a step-by-step runbook are in
+[docs/RELEASE.md](docs/RELEASE.md). The upload key itself and the Play Console
+listing still require the owner's credentials at release time.
