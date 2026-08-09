@@ -97,7 +97,12 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('書き出す前に確認してください'), findsOneWidget);
-    expect(find.textContaining('自動検出は未実装'), findsOneWidget);
+    expect(
+      find.text(
+        '自動検出は未実装です。隠し忘れがないか、画像全体を確認してから書き出してください。',
+      ),
+      findsOneWidget,
+    );
 
     await tester.tap(find.text('戻って確認する'));
     await tester.pumpAndSettle();
