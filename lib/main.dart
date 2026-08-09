@@ -303,7 +303,9 @@ class _EditorState extends State<_Editor> {
                 label: const Text('手動スタンプを追加'),
               ),
               OutlinedButton.icon(
-                onPressed: widget.busy || !widget.canUndo ? null : widget.onUndo,
+                onPressed: widget.busy || !widget.canUndo
+                    ? null
+                    : widget.onUndo,
                 icon: const Icon(Icons.undo),
                 label: const Text('元に戻す'),
               ),
