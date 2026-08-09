@@ -1,0 +1,17 @@
+# Privacy Stamp release signing properties.
+#
+# This file is git-ignored. Create it from this template on the release
+# machine and NEVER commit the real values. Full instructions are in
+# docs/RELEASE.md.
+#
+# Steps to create a release upload key (JDK required):
+#   keytool -genkeypair -v -keystore privacy-stamp-release.jks \
+#     -alias privacy_stamp -keyalg RSA -keysize 2048 -validity 10000 \
+#     -storetype JKS
+# Then copy privacy-stamp-release.jks into android/ and place this file at
+# android/key.properties:
+#
+# storeFile=privacy-stamp-release.jks
+# keyAlias=privacy_stamp
+# storePassword=CHANGE_ME_KEEP_SECRET
+# keyPassword=CHANGE_ME_KEEP_SECRET

@@ -70,15 +70,19 @@ GitHub Actions summary and artifact bundle.
 
 ## Android/Web and release blockers
 
-- `com.example.privacy_stamp` remains a provisional Android namespace and
-  application ID.
-- Release signing is still the Flutter template's debug signing configuration;
-  no production keystore or release credential is configured.
+- The Android namespace and application ID are now fixed at
+  `com.privacy_stamp`; the manifest label is "Privacy Stamp".
+- Release signing is wired via git-ignored `android/key.properties` and
+  falls back to debug signing when the key is absent (CI smoke builds). A
+  production upload key still needs to be generated on a release machine; see
+  `docs/RELEASE.md`.
 - Full Android image edit/save interaction, Web Chrome DOM/drag/drop/browser
   storage, deployed-host behavior, and browser network-panel audit are
   unverified. Emulator launch and image-picker cancellation were exercised.
 - Full direct and transitive third-party license texts are not bundled for a
   distribution release.
+- A production upload key, a Play Console listing, and the Play App Signing
+  enrollment have not been created yet; see `docs/RELEASE.md`.
 - Production work also needs detector adapters, review/coverage UX, exported
   pixel reinspection, privacy/network tests, billing/share decisions, and a
   rollback/support plan.

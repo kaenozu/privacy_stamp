@@ -51,3 +51,11 @@ acceptance-results/
 *.private-image.jpeg
 *.private-image.png
 *.private-image.webp
+
+# Release signing credentials (never commit the real key).
+# A distributed release must be signed with a production upload key
+# configured via android/key.properties. See docs/RELEASE.md.
+key.properties
+*.jks
+*.keystore
+*.key
