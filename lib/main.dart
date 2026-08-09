@@ -137,11 +137,13 @@ class _StampHomePageState extends State<StampHomePage> {
             stamps: _controller.stamps,
             manualStamps: _controller.manualStamps,
             busy: _controller.isBusy,
+            canUndo: _controller.canUndoManualEdit,
             onAdd: _controller.addManualStamp,
             onAddAt: _controller.addManualStampAt,
             onMove: _controller.moveManualStamp,
             onResize: _controller.resizeManualStamp,
             onRemove: _controller.removeManualStamp,
+            onUndo: _controller.undoManualEdit,
             onExport: _export,
             onReset: _controller.reset,
           )
@@ -217,11 +219,13 @@ class _Editor extends StatefulWidget {
     required this.stamps,
     required this.manualStamps,
     required this.busy,
+    required this.canUndo,
     required this.onAdd,
     required this.onAddAt,
     required this.onMove,
     required this.onResize,
     required this.onRemove,
+    required this.onUndo,
     required this.onExport,
     required this.onReset,
   });
@@ -231,11 +235,13 @@ class _Editor extends StatefulWidget {
   final List<Stamp> stamps;
   final List<Stamp> manualStamps;
   final bool busy;
+  final bool canUndo;
   final VoidCallback onAdd;
   final ValueChanged<ui.Offset> onAddAt;
   final void Function(String id, ui.Offset delta) onMove;
   final void Function(String id, ui.Offset delta) onResize;
   final ValueChanged<String> onRemove;
+  final VoidCallback onUndo;
   final VoidCallback onExport;
   final VoidCallback onReset;
 
@@ -322,6 +328,13 @@ class _EditorState extends State<_Editor> {
                 onPressed: widget.busy ? null : widget.onAdd,
                 icon: const Icon(Icons.add_box_outlined),
                 label: const Text('手動スタンプを追加'),
+              ),
+              OutlinedButton.icon(
+                onPressed: widget.busy || !widget.canUndo
+                    ? null
+                    : widget.onUndo,
+                icon: const Icon(Icons.undo),
+                label: const Text('元に戻す'),
               ),
               OutlinedButton.icon(
                 onPressed: widget.busy ? null : widget.onReset,
