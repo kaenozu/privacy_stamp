@@ -34,6 +34,8 @@ jobs:
 
       - name: Run quality gates
         shell: bash
+        env:
+          PRIVACY_STAMP_ALLOW_DEBUG_RELEASE_SIGNING: '1'
         run: |
           set -uo pipefail
           mkdir -p .ci-logs
@@ -119,7 +121,7 @@ jobs:
             echo "| Analyzer warning/info lines | ${warnings} |"
             echo
             echo "Artifacts: CI logs, Web build, debug APK, and a release smoke APK are uploaded when available."
-            echo "The release smoke APK uses the repository's current debug signing configuration and provisional application ID; it is not a distributable release."
+            echo "The release smoke APK is explicitly opted into debug signing for CI only; it is not a distributable release."
             echo
             echo "### Gate results"
             awk -F '\t' '{ icon = ($2 == 0 ? "PASS" : "FAIL"); printf "- `%s`: %s (exit %s)\n", $1, icon, $2 }' .ci-logs/gates.tsv
