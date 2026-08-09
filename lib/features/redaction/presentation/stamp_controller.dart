@@ -148,6 +148,27 @@ class StampController extends ChangeNotifier {
     history: SharedPreferencesExportHistory(),
   );
 
+  factory StampController.testInstance() => StampController(
+    picker: const _TestImagePickerGateway(),
+    detector: DetectionServiceGateway(),
+    exporter: const RedactionExporter().encodeAsync,
+    saver: const _TestImageSaverGateway(),
+    history: SharedPreferencesExportHistory(),
+  );
+
+  void loadImageForTesting(Uint8List bytes, String name, PixelSize imageSize) {
+    if (_disposed) return;
+    _bytes = bytes;
+    _fileName = name;
+    _imageSize = imageSize;
+    _detections = const [];
+    _manualStamps = const [];
+    _manualUndoSnapshot = null;
+    _pickFailure = null;
+    _busy = false;
+    notifyListeners();
+  }
+
   final ImagePickerGateway picker;
   final DetectionGateway detector;
   final RedactionEncoder exporter;
@@ -159,6 +180,7 @@ class StampController extends ChangeNotifier {
   PixelSize? _imageSize;
   List<DetectionRegion> _detections = const [];
   List<Stamp> _manualStamps = const [];
+  List<Stamp>? _manualUndoSnapshot;
   PickImageFailure? _pickFailure;
   bool _busy = false;
   bool _disposed = false;
@@ -170,6 +192,7 @@ class StampController extends ChangeNotifier {
   PixelSize? get imageSize => _imageSize;
   bool get hasImage => _bytes != null;
   bool get isBusy => _busy;
+  bool get canUndoManualEdit => _manualUndoSnapshot != null;
   int get exportCount => _exportCount;
   PickImageFailure? get pickFailure => _pickFailure;
   List<DetectionRegion> get detections => List.unmodifiable(_detections);
@@ -229,6 +252,7 @@ class StampController extends ChangeNotifier {
       _imageSize = picked.imageSize;
       _detections = const [];
       _manualStamps = const [];
+      _manualUndoSnapshot = null;
       notifyListeners();
 
       try {
@@ -272,6 +296,7 @@ class StampController extends ChangeNotifier {
       width,
       height,
     ).clamp();
+    _rememberManualState();
     _manualStamps = [
       ..._manualStamps,
       Stamp(id: 'manual-${DateTime.now().microsecondsSinceEpoch}', rect: rect),
@@ -284,12 +309,15 @@ class StampController extends ChangeNotifier {
     final stamp = _findManualStamp(id);
     if (stamp == null) return;
     final rect = stamp.rect;
-    stamp.rect = NormalizedRect(
+    final next = NormalizedRect(
       (rect.left + delta.dx).clamp(0.0, 1.0 - rect.width).toDouble(),
       (rect.top + delta.dy).clamp(0.0, 1.0 - rect.height).toDouble(),
       rect.width,
       rect.height,
     );
+    if (next == rect) return;
+    _rememberManualState();
+    stamp.rect = next;
     notifyListeners();
   }
 
@@ -304,15 +332,28 @@ class StampController extends ChangeNotifier {
     final height = (rect.height + delta.dy)
         .clamp(.04, 1.0 - rect.top)
         .toDouble();
-    stamp.rect = NormalizedRect(rect.left, rect.top, width, height);
+    final next = NormalizedRect(rect.left, rect.top, width, height);
+    if (next == rect) return;
+    _rememberManualState();
+    stamp.rect = next;
     notifyListeners();
   }
 
   void removeManualStamp(String id) {
     if (_disposed || _busy) return;
-    final before = _manualStamps.length;
+    if (_findManualStamp(id) == null) return;
+    _rememberManualState();
     _manualStamps = _manualStamps.where((stamp) => stamp.id != id).toList();
-    if (_manualStamps.length != before) notifyListeners();
+    notifyListeners();
+  }
+
+  void undoManualEdit() {
+    if (_disposed || _busy) return;
+    final snapshot = _manualUndoSnapshot;
+    if (snapshot == null) return;
+    _manualStamps = _copyManualStamps(snapshot);
+    _manualUndoSnapshot = null;
+    notifyListeners();
   }
 
   void reset() {
@@ -323,6 +364,7 @@ class StampController extends ChangeNotifier {
     _imageSize = null;
     _detections = const [];
     _manualStamps = const [];
+    _manualUndoSnapshot = null;
     _pickFailure = null;
     _busy = false;
     notifyListeners();
@@ -368,6 +410,20 @@ class StampController extends ChangeNotifier {
     }
   }
 
+  void _rememberManualState() {
+    _manualUndoSnapshot = _copyManualStamps(_manualStamps);
+  }
+
+  List<Stamp> _copyManualStamps(Iterable<Stamp> source) => [
+    for (final stamp in source)
+      Stamp(
+        id: stamp.id,
+        rect: stamp.rect,
+        kind: stamp.kind,
+        isAutomatic: stamp.isAutomatic,
+      ),
+  ];
+
   Stamp? _findManualStamp(String id) {
     for (final stamp in _manualStamps) {
       if (stamp.id == id) return stamp;
@@ -383,4 +439,18 @@ class StampController extends ChangeNotifier {
     ++_generation;
     super.dispose();
   }
+}
+
+class _TestImagePickerGateway implements ImagePickerGateway {
+  const _TestImagePickerGateway();
+
+  @override
+  Future<PickedImage?> pick() async => null;
+}
+
+class _TestImageSaverGateway implements ImageSaverGateway {
+  const _TestImageSaverGateway();
+
+  @override
+  Future<bool> save(Uint8List bytes, {required String fileName}) async => true;
 }

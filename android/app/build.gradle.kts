@@ -8,14 +8,26 @@ plugins {
 }
 
 // Load release signing credentials from android/key.properties (git-ignored).
-// CI and first-time clones have no key.properties and fall back to debug
-// signing so that local/smoke builds keep working; a distributed release must
-// be built on a machine that has key.properties with the production upload key.
+// A normal release task must have the production upload key. CI may opt in to
+// a non-distributable debug-signed release smoke artifact explicitly.
 val keystoreProperties = Properties()
 val keystorePropertiesFile = rootProject.file("key.properties")
 val hasReleaseKey = keystorePropertiesFile.exists()
+val allowDebugReleaseSigning =
+    System.getenv("PRIVACY_STAMP_ALLOW_DEBUG_RELEASE_SIGNING") == "1"
+val releaseTaskRequested = gradle.startParameter.taskNames.any {
+    it.contains("release", ignoreCase = true)
+}
 if (hasReleaseKey) {
     keystoreProperties.load(FileInputStream(keystorePropertiesFile))
+}
+
+if (releaseTaskRequested && !hasReleaseKey && !allowDebugReleaseSigning) {
+    throw GradleException(
+        "Release signing key is missing. Configure android/key.properties " +
+            "with the production upload key. Debug-signed release smoke builds " +
+            "must explicitly set PRIVACY_STAMP_ALLOW_DEBUG_RELEASE_SIGNING=1."
+    )
 }
 
 android {
@@ -52,13 +64,10 @@ android {
 
     buildTypes {
         release {
-            // Sign with the production upload key when key.properties exists;
-            // otherwise fall back to debug signing so CI smoke builds pass.
-            // A debug-signed APK/AAB is NOT distributable to Google Play.
-            signingConfig = if (hasReleaseKey) {
-                signingConfigs.getByName("release")
-            } else {
-                signingConfigs.getByName("debug")
+            signingConfig = when {
+                hasReleaseKey -> signingConfigs.getByName("release")
+                allowDebugReleaseSigning -> signingConfigs.getByName("debug")
+                else -> null
             }
         }
     }

@@ -44,6 +44,24 @@ void main() {
     expect(engine.detect([text('95.681236, 199.767125')]), isEmpty);
     expect(engine.detect([text('199.767125, 95.681236')]), isEmpty);
   });
+  test('detects Luhn-valid card candidates with spaces or hyphens', () {
+    for (final value in ['4111 1111 1111 1111', '4111-1111-1111-1111']) {
+      final result = engine.detect([text(value)]);
+      expect(result.single.kind, DetectionKind.card, reason: value);
+    }
+  });
+  test('rejects separated card candidates with invalid length or Luhn', () {
+    expect(engine.detect([text('4111 1111 1111')]), isEmpty);
+    expect(engine.detect([text('4111 1111 1111 1112')]), isEmpty);
+    expect(engine.detect([text('4111 1111 1111 1111 1111')]), isEmpty);
+  });
+  test('detects valid coordinates and rejects out of range values', () {
+    expect(
+      engine.detect([text('35.681236, 139.767125')]).single.kind,
+      DetectionKind.coordinate,
+    );
+    expect(engine.detect([text('95.681236, 139.767125')]), isEmpty);
+  });
   test('strong mode hides every OCR region', () {
     final result = engine.detect([text('普通の文章')], hideAllText: true);
     expect(result.single.kind, DetectionKind.allText);

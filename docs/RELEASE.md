@@ -13,8 +13,9 @@ A machine that builds the release must have:
   (`flutter doctor` should show Android toolchain OK).
 - JDK 17 (used by the Gradle build and by `keytool`).
 - `android/key.properties` present with the production upload key (see below).
-  Without it, the Gradle build silently falls back to debug signing, and the
-  output is NOT distributable.
+  Without it, a normal release task fails closed instead of producing a
+  debug-signed artifact. CI may explicitly opt into debug signing only for its
+  non-distributable release smoke build.
 
 Local quality gates (same as CI):
 
@@ -44,6 +45,9 @@ prevents future updates to the Play listing.
 Recommended: after uploading the first AAB, use **Play App Signing** so the app
 signing key is managed by Google and only the upload key stays local.
 
+`PRIVACY_STAMP_ALLOW_DEBUG_RELEASE_SIGNING=1` is reserved for CI smoke builds.
+Do not set it on a release machine used to produce an AAB for Google Play.
+
 ## 3. Build the release artifact
 
 ```bash
@@ -51,6 +55,9 @@ flutter build appbundle --release
 ```
 
 Output: `build/app/outputs/bundle/release/app-release.aab`
+
+If `android/key.properties` is missing, this command must fail. Do not bypass
+that failure for a distributable build.
 
 Verify the artifact is signed with the upload key, not the debug key:
 
@@ -126,7 +133,7 @@ The code is release-ready when:
 
 - [x] Application ID is final: `com.privacy_stamp`
 - [x] App label is final: "Privacy Stamp"
-- [x] Release signing is wired (key.properties-based, git-ignored)
+- [x] Release signing is wired (key.properties-based, git-ignored, fail-closed)
 - [x] CI gates (format / analyze / test / web / android) are green
 - [x] Release runbook exists (this document)
 - [ ] Upload key generated and stored safely on a release machine
