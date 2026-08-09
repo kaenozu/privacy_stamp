@@ -76,7 +76,8 @@ jobs:
           run_gate test flutter test --reporter json
           run_gate web_build flutter build web --release
           run_gate android_debug_build flutter build apk --debug
-          run_gate android_release_smoke flutter build apk --release
+          run_gate android_release_signing_guard bash -c 'set +e; output=$(cd android && ./gradlew assembleRelease --dry-run 2>&1); status=$?; set -e; if [ "$status" -eq 0 ]; then echo "release task unexpectedly succeeded without a signing key"; exit 1; fi; printf "%s\n" "$output" | grep -q "Release signing key is missing"'
+          run_gate android_release_smoke env PRIVACY_STAMP_ALLOW_DEBUG_RELEASE_SIGNING=1 flutter build apk --release
 
           passed=$(awk -F '\t' '$2 == 0 { count++ } END { print count + 0 }' .ci-logs/gates.tsv)
           failed=$(awk -F '\t' '$2 != 0 { count++ } END { print count + 0 }' .ci-logs/gates.tsv)
@@ -128,7 +129,7 @@ jobs:
             echo "| Analyzer warning/info lines | ${warnings} |"
             echo
             echo "Artifacts: CI logs, Web build, debug APK, and a release smoke APK are uploaded when available."
-            echo "The release smoke APK uses the repository's current debug signing configuration and provisional application ID; it is not a distributable release."
+            echo "The release smoke APK explicitly opts into debug signing for CI only; it is not a distributable release."
             echo
             echo "### Gate results"
             awk -F '\t' '{ icon = ($2 == 0 ? "PASS" : "FAIL"); printf "- `%s`: %s (exit %s)\n", $1, icon, $2 }' .ci-logs/gates.tsv
