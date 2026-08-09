@@ -1,7 +1,8 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)][string]$InputImage,
-    [string]$RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path,
+    [switch]$GenerateSyntheticFixture,
+    [string]$RepoRoot,
     [string]$AvdName = 'PrivacyStamp_LowMem_API35',
     [string]$Serial = 'emulator-5556',
     [int]$RamMb = 1536,
@@ -26,7 +27,12 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
-Import-Module (Join-Path $PSScriptRoot 'PrivacyStampAcceptanceEvidence.psm1') -Force
+$scriptDir = if ($PSScriptRoot) { $PSScriptRoot } else { Split-Path -Parent $MyInvocation.MyCommand.Definition }
+Import-Module (Join-Path $scriptDir 'PrivacyStampAcceptanceEvidence.psm1') -Force
+
+if (-not $RepoRoot) {
+    $RepoRoot = (Resolve-Path (Join-Path $scriptDir '../..')).Path
+}
 
 function Require-Command([string]$Name) {
     $command = Get-Command $Name -ErrorAction SilentlyContinue
@@ -34,9 +40,26 @@ function Require-Command([string]$Name) {
     $command.Source
 }
 
-function Run([string]$File, [string[]]$Args, [switch]$AllowFailure) {
-    $lines = @(& $File @Args 2>&1 | ForEach-Object { "$_" })
-    $exitCode = $LASTEXITCODE
+function Run([string]$File, [string[]]$Arguments, [switch]$AllowFailure) {
+    $stdoutFile = [System.IO.Path]::GetTempFileName()
+    $stderrFile = [System.IO.Path]::GetTempFileName()
+    $process = $null
+    try {
+        $argumentList = $Arguments -join ' '
+        $process = Start-Process -FilePath $File -ArgumentList $argumentList -NoNewWindow -RedirectStandardOutput $stdoutFile -RedirectStandardError $stderrFile -PassThru -Wait
+        $exitCode = $process.ExitCode
+    } catch {
+        $exitCode = 1
+    }
+    $lines = @()
+    if (Test-Path $stdoutFile) {
+        $lines += Get-Content $stdoutFile -ErrorAction SilentlyContinue
+    }
+    if (Test-Path $stderrFile) {
+        $lines += Get-Content $stderrFile -ErrorAction SilentlyContinue
+    }
+    Remove-Item $stdoutFile -Force -ErrorAction SilentlyContinue
+    Remove-Item $stderrFile -Force -ErrorAction SilentlyContinue
     if ($exitCode -ne 0 -and -not $AllowFailure) {
         throw "Command failed with exit code $exitCode."
     }
@@ -111,7 +134,7 @@ function Require-OperatorConfirmation(
 function Get-ImageMetadata([string]$Path) {
     Push-Location $repo
     try {
-        $probe = Run $dart @(
+        $probe = Run -File dart -Arguments @(
             'run',
             'tool/acceptance/image_metadata_probe.dart',
             $Path
@@ -124,7 +147,7 @@ function Get-ImageMetadata([string]$Path) {
     if ([string]::IsNullOrWhiteSpace($jsonLine)) {
         throw 'Image metadata probe did not return JSON.'
     }
-    $jsonLine | ConvertFrom-Json -Depth 20
+    $jsonLine | ConvertFrom-Json
 }
 
 function Ensure-SystemImage {
@@ -142,14 +165,32 @@ function Ensure-SystemImage {
 
 $repo = [System.IO.Path]::GetFullPath($RepoRoot)
 $input = [System.IO.Path]::GetFullPath($InputImage)
+$flutter = Require-Command 'flutter'
+$dart = Require-Command 'dart'
+
+if ($GenerateSyntheticFixture) {
+    Push-Location $repo
+    try {
+        $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
+        $syntheticPath = Join-Path $repo ".acceptance/synthetic-high-res-$stamp.jpg"
+        New-Item -ItemType Directory -Path (Split-Path -Parent $syntheticPath) -Force | Out-Null
+        $generation = Run -File $dart -Arguments @('run', 'tool/acceptance/generate_synthetic_fixture.dart', $syntheticPath)
+        if ($generation.ExitCode -ne 0) {
+            throw "Synthetic fixture generation failed."
+        }
+        $input = $syntheticPath
+    } finally {
+        Pop-Location
+    }
+}
+
 if (-not (Test-Path -LiteralPath $input -PathType Leaf)) {
     throw 'Input image was not found.'
 }
-$flutter = Require-Command 'flutter'
-$dart = Require-Command 'dart'
+
 Push-Location $repo
 try {
-    Run $flutter @('pub', 'get') | Out-Null
+    Run -File flutter -Arguments @('pub', 'get') | Out-Null
 } finally {
     Pop-Location
 }
@@ -220,12 +261,12 @@ try {
 
     $adb = Require-Command 'adb'
     $emulator = Require-Command 'emulator'
-    $devices = (Run $adb @('devices')).Lines
+    $devices = (Run -File adb -Arguments @('devices')).Lines
     $deviceOnline = $devices |
         Where-Object { $_ -match "^$([regex]::Escape($Serial))\s+device$" }
 
     if (-not $deviceOnline) {
-        $avds = (Run $emulator @('-list-avds')).Lines
+        $avds = (Run -File emulator -Arguments @('-list-avds')).Lines
         if ($AvdName -notin $avds) {
             if ($SkipAvdCreation) {
                 throw "AVD $AvdName is missing and -SkipAvdCreation was supplied."
@@ -269,7 +310,7 @@ try {
     if (-not $SkipBuild -and [string]::IsNullOrWhiteSpace($ApkPath)) {
         Push-Location $repo
         try {
-            $build = Run $flutter @('build', 'apk', '--debug')
+            $build = Run -File flutter -Arguments @('build', 'apk', '--debug')
             $build.Lines | Set-Content -LiteralPath (
                 Join-Path $runDirectory 'flutter-build.log'
             ) -Encoding utf8
@@ -445,7 +486,7 @@ try {
     $failed = @($checks | Where-Object { $_.status -eq 'FAIL' })
     $result = if ($failed.Count -eq 0) { 'PASS' } else { 'BLOCKER' }
     $git = Require-Command 'git'
-    $head = (Run $git @('-C', $repo, 'rev-parse', 'HEAD')).Text.Trim()
+    $head = (Run -File git -Arguments @('-C', $repo, 'rev-parse', 'HEAD')).Text.Trim()
     $report = [ordered]@{
         result = $result
         generatedAt = (Get-Date).ToString('o')
@@ -466,16 +507,17 @@ try {
             eventTypes = @($runtimeSummary.Events)
             rawLogsIncluded = $false
         }
-        input = [ordered]@{
-            bytes = (Get-Item -LiteralPath $input).Length
-            width = $inputInfo.width
-            height = $inputInfo.height
-            pixels = $inputPixels
-            format = $inputInfo.format
-            gpsPresent = $inputHasGps
-            finalContract = $finalInputContract
-            pathIncluded = $false
-        }
+            input = [ordered]@{
+                bytes = (Get-Item -LiteralPath $input).Length
+                width = $inputInfo.width
+                height = $inputInfo.height
+                pixels = $inputPixels
+                format = $inputInfo.format
+                gpsPresent = $inputHasGps
+                finalContract = $finalInputContract
+                pathIncluded = $false
+                synthetic = $GenerateSyntheticFixture.IsPresent
+            }
         output = [ordered]@{
             width = $outputInfo.width
             height = $outputInfo.height
