@@ -50,7 +50,7 @@ class SensitiveRuleEngine {
       }
       final coordinate = _coordinate.firstMatch(text);
       if (coordinate != null &&
-          _validCoordinate(
+          _validCoordinatePair(
             double.tryParse(coordinate.group(1)!),
             double.tryParse(coordinate.group(2)!),
           )) {
@@ -73,8 +73,13 @@ class SensitiveRuleEngine {
     return output;
   }
 
-  bool _validCoordinate(double? a, double? b) =>
-      a != null && b != null && a.abs() <= 90 && b.abs() <= 180;
+  bool _validCoordinatePair(double? a, double? b) {
+    if (a == null || b == null) return false;
+    final latitudeLongitude = a.abs() <= 90 && b.abs() <= 180;
+    final longitudeLatitude = a.abs() <= 180 && b.abs() <= 90;
+    return latitudeLongitude || longitudeLatitude;
+  }
+
   bool _passesLuhn(String value) {
     var sum = 0;
     var alternate = false;
