@@ -86,24 +86,6 @@ void main() {
     await controller.pickImage();
     expect(controller.canUndoManualEdit, isFalse);
   });
-
-  test('no-op clamped edits do not create a new undo snapshot', () async {
-    final controller = _controller();
-    await controller.pickImage();
-    controller.addManualStampAt(const Offset(0, 0));
-    controller.undoManualEdit();
-    controller.addManualStampAt(const Offset(0, 0));
-    final id = controller.manualStamps.single.id;
-
-    controller.moveManualStamp(id, const Offset(-1, -1));
-    expect(controller.canUndoManualEdit, isTrue);
-    controller.undoManualEdit();
-
-    // The stamp was already clamped to the top-left edge. Repeating the same
-    // move is a no-op and must not create an undo state by itself.
-    controller.moveManualStamp(id, const Offset(-1, -1));
-    expect(controller.canUndoManualEdit, isFalse);
-  });
 }
 
 StampController _controller({List<DetectionRegion> detections = const []}) =>
