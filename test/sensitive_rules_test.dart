@@ -32,10 +32,7 @@ void main() {
     expect(engine.detect([text('4111111111111112')]), isEmpty);
   });
   test('detects Luhn-valid card candidates with spaces or hyphens', () {
-    for (final value in [
-      '4111 1111 1111 1111',
-      '4111-1111-1111-1111',
-    ]) {
+    for (final value in ['4111 1111 1111 1111', '4111-1111-1111-1111']) {
       final result = engine.detect([text(value)]);
       expect(result.single.kind, DetectionKind.card, reason: value);
     }
