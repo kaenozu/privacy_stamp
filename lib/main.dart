@@ -82,7 +82,8 @@ class _StampHomePageState extends State<StampHomePage> {
       builder: (context) => AlertDialog(
         title: const Text('書き出す前に確認してください'),
         content: const Text(
-          '自動検出は未実装です。隠し忘れがないか、画像全体を確認してから書き出してください。',
+          '自動検出は未実装です。隠し忘れがないか、'
+          '画像全体を確認してから書き出してください。',
         ),
         actions: [
           TextButton(
