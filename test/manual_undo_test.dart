@@ -18,37 +18,40 @@ void main() {
     expect(controller.canUndoManualEdit, isFalse);
   });
 
-  test('undo restores move, resize, and removal without touching detections', () async {
-    final automatic = DetectionRegion(
-      id: 'automatic-1',
-      kind: DetectionKind.email,
-      normalizedRect: const NormalizedRect(.05, .05, .2, .1),
-    );
-    final controller = _controller(detections: [automatic]);
-    await controller.pickImage();
-    controller.addManualStamp();
-    final id = controller.manualStamps.single.id;
+  test(
+    'undo restores move, resize, and removal without touching detections',
+    () async {
+      final automatic = DetectionRegion(
+        id: 'automatic-1',
+        kind: DetectionKind.email,
+        normalizedRect: const NormalizedRect(.05, .05, .2, .1),
+      );
+      final controller = _controller(detections: [automatic]);
+      await controller.pickImage();
+      controller.addManualStamp();
+      final id = controller.manualStamps.single.id;
 
-    final beforeMove = controller.manualStamps.single.rect;
-    controller.moveManualStamp(id, const Offset(.1, .05));
-    expect(controller.manualStamps.single.rect, isNot(beforeMove));
-    controller.undoManualEdit();
-    expect(controller.manualStamps.single.rect, beforeMove);
-    expect(controller.detections.single.id, automatic.id);
+      final beforeMove = controller.manualStamps.single.rect;
+      controller.moveManualStamp(id, const Offset(.1, .05));
+      expect(controller.manualStamps.single.rect, isNot(beforeMove));
+      controller.undoManualEdit();
+      expect(controller.manualStamps.single.rect, beforeMove);
+      expect(controller.detections.single.id, automatic.id);
 
-    final beforeResize = controller.manualStamps.single.rect;
-    controller.resizeManualStamp(id, const Offset(.1, .1));
-    expect(controller.manualStamps.single.rect, isNot(beforeResize));
-    controller.undoManualEdit();
-    expect(controller.manualStamps.single.rect, beforeResize);
-    expect(controller.detections.single.id, automatic.id);
+      final beforeResize = controller.manualStamps.single.rect;
+      controller.resizeManualStamp(id, const Offset(.1, .1));
+      expect(controller.manualStamps.single.rect, isNot(beforeResize));
+      controller.undoManualEdit();
+      expect(controller.manualStamps.single.rect, beforeResize);
+      expect(controller.detections.single.id, automatic.id);
 
-    controller.removeManualStamp(id);
-    expect(controller.manualStamps, isEmpty);
-    controller.undoManualEdit();
-    expect(controller.manualStamps.single.id, id);
-    expect(controller.detections.single.id, automatic.id);
-  });
+      controller.removeManualStamp(id);
+      expect(controller.manualStamps, isEmpty);
+      controller.undoManualEdit();
+      expect(controller.manualStamps.single.id, id);
+      expect(controller.detections.single.id, automatic.id);
+    },
+  );
 
   test('reset and image replacement clear undo state', () async {
     final picker = _SequencePicker([
