@@ -148,6 +148,7 @@ jobs:
         with:
           name: flutter-quality-gates-${{ github.run_id }}
           if-no-files-found: warn
+          include-hidden-files: true
           path: |
             .ci-logs/
             build/web/
