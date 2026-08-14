@@ -1,73 +1,61 @@
 # Privacy Stamp
 
-Privacy Stamp is a privacy-preserving image redaction stamp MVP. Its purpose is
-to help a user cover sensitive areas of one image before publishing or sharing
-it, while keeping the image-processing path local to the app or browser.
+Privacy Stamp は、画像内の機微な領域を手動でマスクし、共有前に別PNGとして書き出すことを目的とした Flutter MVP です。画像処理はアプリ / ブラウザ内のローカル処理を基本とします。
 
-## What works today
+## 現在できること
 
-The current flow is intentionally small:
+1. JPEG / PNG / WebP を1枚選択
+2. 画像をローカルpreview
+3. 不透明な矩形maskを追加
+4. maskを移動・resize・削除
+5. 元画像を上書きせず、別PNGとしてexport
 
-1. Choose one JPEG, PNG, or WebP image with `file_picker`.
-2. Preview the image locally and add a manual black stamp.
-3. Select a manual stamp and move, resize, or remove it with visible controls.
-4. Export a separate PNG with opaque rectangular masks and baked orientation.
+export時はorientationを焼き込み、metadata除去を検証します。
 
-The exporter does not overwrite the selected source file. Export counts are
-stored locally with `shared_preferences`; there is no configured billing or
-enforced free-tier limit yet.
+## 現在できないこと
 
-The shared model and pure-Dart rule engine define contracts for faces, OCR text,
-barcodes, email, phone, postal code, card, coordinates, and labelled values.
-The current platform text detector is an empty adapter, however, so selecting an
-image does not currently produce automatic face/OCR/barcode masks. The strong
-text-hiding mode is also only effective when a real OCR adapter supplies text
-regions. Manual review is therefore required for the current MVP.
+自動検出のdomain modelやrule engineは存在しますが、現行MVPでは実platform detectorが未完成です。
 
-## Privacy boundary and threat model
+- face自動検出
+- OCR text自動検出
+- barcode自動検出
+- 自動maskだけに依存した安全保証
 
-The current application code passes selected image bytes to local Dart code and
-the `image` package for decoding, masking, and PNG encoding. It contains no
-application server, upload API, analytics SDK, or remote detector integration.
-That supports the product statement that the image-processing path is local;
-it is not a complete security or privacy certification.
+したがって、**現時点では手動レビューが必須**です。
 
-The MVP is designed to reduce accidental publication of visible sensitive areas
-when the user reviews and places masks. It does not protect against:
+## Privacy boundary
 
-- false negatives, OCR errors, unsupported image content, or a user missing an
-  unmasked area;
-- screenshots, copied exports, OS/browser compromise, malicious files, or
-  compromised third-party dependencies;
-- metadata, hosting/CDN logs, browser extensions, or deployment configuration
-  outside this repository;
-- automatic detection, because face/OCR/barcode adapters are not implemented;
-- release integrity, because the Android application ID is provisional and the
-  current release build uses the debug signing configuration.
+現在のアプリコードは、選択画像をローカルDartコードと `image` packageでdecode / mask / encodeします。
 
-The source image is kept separate from the exported PNG by the current export
-API. Tests re-decode exported PNGs and inspect mask/non-mask pixels and
-metadata. A release merged-manifest audit found no INTERNET or external-storage
-permission. Browser DevTools network inspection and deployed-host behavior are
-still unverified, so do not describe the MVP as providing guaranteed redaction.
+- application serverなし
+- upload APIなし
+- analytics SDKなし
+- remote detector integrationなし
+- source画像とexport PNGを分離
+- export PNGを再decodeしてmask pixel / metadataをtest可能
 
-## Android and Web status
+ただし、これは完全なsecurity / privacy certificationではありません。false negative、OS / browser compromise、malicious file、dependency compromise、deployment設定などは別リスクです。
 
-- Android has the Flutter launcher and local image/export flow. ML Kit adapters,
-  share-intent receiving, system share-out, a production application ID, and
-  production signing are not configured.
-- Web has the Flutter web shell and local file-picker flow. MediaPipe,
-  Tesseract.js, and ZXing adapters are not bundled. Chrome drag/drop, browser
-  storage behavior, network-panel inspection, and deployed-host behavior are
-  not verified.
-- The release merged manifest has no `INTERNET`, `READ_EXTERNAL_STORAGE`, or
-  `WRITE_EXTERNAL_STORAGE` permission. Re-audit if platform plugins change.
+## Android / Web
 
-See [MVP_STATUS.md](MVP_STATUS.md) for the implementation and release checklist.
+### Android
+
+- Flutter launcherとローカル画像処理を提供
+- production application IDは `com.privacy_stamp`
+- release signing配線とrunbookあり
+- production upload key / Play Console受入は別のprivileged gate
+
+### Web
+
+- Flutter web shellとlocal file picker flowを提供
+- automatic detector adapterは未実装
+- deployed hostのnetwork / storage / browser behaviorは別途受入が必要
+
+プラットフォームplugin変更時は、permissionとnetwork egressを再監査してください。
 
 ## Development
 
-The repository requires Dart 3.12 or newer within the Flutter SDK constraint.
+Dart 3.12以上を含むFlutter SDKを使用します。
 
 ```bash
 flutter pub get
@@ -76,46 +64,38 @@ flutter analyze --fatal-infos
 flutter test --reporter expanded
 flutter build web --release
 flutter build apk --debug
+git diff --check
 ```
 
-The tests cover sensitive-value rules, coordinate mapping, opaque PNG masking,
-metadata stripping, controller races, and exported-pixel reinspection. They are
-not privacy proof: full image editing on a real device, browser interaction,
-browser network-panel inspection, and detector integration remain unverified.
+テストはrule engine、coordinate mapping、opaque masking、metadata stripping、controller race、exported pixel reinspection等を対象にします。
 
-The GitHub Actions workflow runs on every pull request and push to `main`:
+## Acceptance
 
-- Flutter stable setup, Java 17 setup, and `flutter pub get`;
-- format check, analyzer, and tests;
-- Web release build and Android debug build;
-- Android release smoke build when the current toolchain permits it;
-- a step summary with gate/test/skip/warning counts, failure commands, and
-  uploaded logs/build artifacts.
+CI成功だけでrelease可能とは扱いません。特に次を別ゲートとして確認します。
 
-The release smoke APK is an inspection artifact only. It uses the repository's
-current debug signing setup and provisional `com.example.privacy_stamp` ID; it
-must not be distributed as a production APK.
+- deterministic synthetic high-resolution image
+- low-memory Android環境でのselect / pan / zoom / mask / export
+- input GPSあり / output GPSなし
+- output pixel count一致
+- OOM / ANR / process deathなし
+- cancel / back / lifecycle安全性
+- browser / deployed-host behavior
+- production signing / Play Console
 
-## Direct dependencies
+private写真、private path、実GPS値を受入証跡へ残さないでください。
 
-Runtime dependencies are `file_picker`, `image`, and `shared_preferences`, in
-addition to the Flutter SDK. Development dependencies are `flutter_test` and
-`flutter_lints`. The list
-is kept aligned with the direct entries in `pubspec.yaml`; transitive packages
-remain governed by `pubspec.lock`. License notes are in
-[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+## Release
 
-## Work required before production
+正式ID、release signing配線、手順は [docs/RELEASE.md](docs/RELEASE.md) を参照してください。
 
-Production work includes implementing and validating platform detector adapters;
-making every automatic result reviewable with clear confidence and coverage
-states; re-inspecting exported pixels; adding real Android and browser tests;
-auditing network egress, storage, permissions, metadata, manifests, and
-dependency licenses; finishing the release signing on a release machine; and
-deciding the billing, share, update, rollback, support, and incident
-response policies. None of those steps is implied by a passing CI build.
+Production upload keyの作成・保管、Play App Signing、store listing、Data safety、internal testはowner credentialを伴う別作業です。
 
-The application ID (`com.privacy_stamp`) and app label ("Privacy Stamp") are
-now final, and the release-signing wiring plus a step-by-step runbook are in
-[docs/RELEASE.md](docs/RELEASE.md). The upload key itself and the Play Console
-listing still require the owner's credentials at release time.
+## 主な資料
+
+- [MVP_STATUS.md](MVP_STATUS.md) — 実装 / release checklist
+- [docs/RELEASE.md](docs/RELEASE.md) — Android release手順
+- [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) — third-party license情報
+
+## 作業管理
+
+READMEには変動しやすいcurrent SHA、個別PR、acceptance結果を固定しません。最新のsynthetic高解像度受入、release signing、Play blockerは GitHub Issues / Pull Requests を正としてください。
