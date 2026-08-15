@@ -1,4 +1,4 @@
-package com.example.privacy_stamp
+package com.privacy_stamp
 
 import io.flutter.embedding.android.FlutterActivity
 
