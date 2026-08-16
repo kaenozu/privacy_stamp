@@ -129,4 +129,4 @@ The private input, pulled output, and local logs must never be attached to an Is
 
 ## Production artifact gate
 
-After the final application ID and signing identity are chosen, verify the exact Privacy Stamp APK or AAB with the repository release runner. Do not distribute the current `com.example.privacy_stamp` debug-signed artifact.
+The final application ID is `com.privacy_stamp`. Verify the exact Privacy Stamp APK or AAB with the repository release runner, and never distribute a debug-signed artifact.

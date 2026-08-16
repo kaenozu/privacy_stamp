@@ -7,7 +7,7 @@ param(
     [string]$Serial = 'emulator-5556',
     [int]$RamMb = 1536,
     [string]$SystemImage = 'system-images;android-35;google_apis;x86_64',
-    [string]$PackageName = 'com.example.privacy_stamp',
+    [string]$PackageName = 'com.privacy_stamp',
     [string]$ApkPath,
     [string]$ExpectedOutputDevicePath,
     [int]$OutputWaitSeconds = 300,

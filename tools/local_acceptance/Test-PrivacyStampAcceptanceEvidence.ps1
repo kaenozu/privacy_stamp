@@ -18,7 +18,7 @@ function Assert-True([bool]$Value, [string]$Message) {
 $sample = ConvertFrom-PrivacyStampMeminfoSample `
     -ExpectedPid 4321 `
     -Lines @(
-        '** MEMINFO in pid 4321 [com.example.privacy_stamp] **',
+        '** MEMINFO in pid 4321 [com.privacy_stamp] **',
         ' App Summary',
         ' Java Heap:      1200                       2400',
         ' Native Heap:    3400                       4800',
@@ -35,7 +35,7 @@ try {
     ConvertFrom-PrivacyStampMeminfoSample `
         -ExpectedPid 4321 `
         -Lines @(
-            '** MEMINFO in pid 4322 [com.example.privacy_stamp] **',
+            '** MEMINFO in pid 4322 [com.privacy_stamp] **',
             ' App Summary',
             ' TOTAL: 8500 12600'
         ) | Out-Null
@@ -169,14 +169,14 @@ $logcat = @(
     '08-05 10:00:00.000  4321  4500 E AndroidRuntime: FATAL EXCEPTION: main',
     '08-05 10:00:00.001  4321  4500 E AndroidRuntime: java.lang.OutOfMemoryError: Failed to allocate',
     '08-05 10:00:00.002  4321  4500 W lmkd: killing process due to low memory',
-    '08-05 10:01:00.000  1000  1000 E ActivityManager: ANR in com.example.privacy_stamp',
-    '08-05 10:02:00.000  1000  1000 I ActivityManager: Process com.example.privacy_stamp has died',
+    '08-05 10:01:00.000  1000  1000 E ActivityManager: ANR in com.privacy_stamp',
+    '08-05 10:02:00.000  1000  1000 I ActivityManager: Process com.privacy_stamp has died',
     '08-05 10:03:00.000  9999  9999 E AndroidRuntime: FATAL EXCEPTION: unrelated'
 )
 $events = @(
     Find-PrivacyStampFatalEvents `
         -Lines $logcat `
-        -PackageName 'com.example.privacy_stamp' `
+        -PackageName 'com.privacy_stamp' `
         -MonitoredPids @(4321)
 )
 Assert-True ($events -contains 'FATAL EXCEPTION') 'FATAL EXCEPTION not detected'
@@ -191,7 +191,7 @@ $unrelated = @(
             '08-05 10:00:00.000  9999  9999 E AndroidRuntime: FATAL EXCEPTION: main',
             '08-05 10:00:00.001  9999  9999 E AndroidRuntime: Process: another.package, PID: 9999'
         ) `
-        -PackageName 'com.example.privacy_stamp' `
+        -PackageName 'com.privacy_stamp' `
         -MonitoredPids @(4321)
 )
 Assert-Equal $unrelated.Count 0 'Unrelated package fatal event was not excluded'
