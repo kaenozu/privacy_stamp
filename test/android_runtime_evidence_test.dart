@@ -5,7 +5,7 @@ import '../tool/acceptance/android_runtime_evidence.dart';
 void main() {
   test('parses privacy-safe memory values from App Summary', () {
     const meminfo = '''
-** MEMINFO in pid 4321 [com.example.privacy_stamp] **
+** MEMINFO in pid 4321 [com.privacy_stamp] **
  App Summary
                        Pss(KB)                        Rss(KB)
                         ------                         ------
@@ -25,7 +25,7 @@ void main() {
 
   test('rejects a meminfo PID that differs from the monitored process', () {
     const meminfo = '''
-** MEMINFO in pid 4322 [com.example.privacy_stamp] **
+** MEMINFO in pid 4322 [com.privacy_stamp] **
  App Summary
                 TOTAL:     8,500                         12,600
 ''';
@@ -62,7 +62,7 @@ void main() {
     final summary = AcceptanceRuntimeSummary.fromEvidence(
       samples: const <AcceptanceMemorySample>[first, second, restarted],
       logcat: '',
-      packageName: 'com.example.privacy_stamp',
+      packageName: 'com.privacy_stamp',
       processAliveAfterExport: true,
     );
 
@@ -85,7 +85,7 @@ void main() {
 
     final events = parseRuntimeEvents(
       logcat,
-      packageName: 'com.example.privacy_stamp',
+      packageName: 'com.privacy_stamp',
       monitoredPids: const <int>{4321},
     );
 
@@ -96,11 +96,11 @@ void main() {
   });
 
   test('detects package-level ANR, process death, and low-memory kill', () {
-    const packageName = 'com.example.privacy_stamp';
+    const packageName = 'com.privacy_stamp';
     const logcat = '''
-08-06 10:00:01.000  1000  1000 E ActivityManager: ANR in com.example.privacy_stamp
-08-06 10:00:02.000  1000  1000 I ActivityManager: Process com.example.privacy_stamp has died
-08-06 10:00:03.000  1000  1000 W lmkd: killing com.example.privacy_stamp due to low memory
+08-06 10:00:01.000  1000  1000 E ActivityManager: ANR in com.privacy_stamp
+08-06 10:00:02.000  1000  1000 I ActivityManager: Process com.privacy_stamp has died
+08-06 10:00:03.000  1000  1000 W lmkd: killing com.privacy_stamp due to low memory
 ''';
 
     final events = parseRuntimeEvents(
@@ -126,7 +126,7 @@ void main() {
         ),
       ],
       logcat: 'normal lifecycle output',
-      packageName: 'com.example.privacy_stamp',
+      packageName: 'com.privacy_stamp',
       processAliveAfterExport: true,
     );
 
@@ -139,7 +139,7 @@ void main() {
       () => AcceptanceRuntimeSummary.fromEvidence(
         samples: const <AcceptanceMemorySample>[],
         logcat: '',
-        packageName: 'com.example.privacy_stamp',
+        packageName: 'com.privacy_stamp',
         processAliveAfterExport: true,
       ),
       throwsFormatException,
