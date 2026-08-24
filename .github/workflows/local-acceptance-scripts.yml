@@ -107,7 +107,10 @@ jobs:
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 35
-          target: google_apis
+          # This gate exercises Flutter/image behavior only; it does not use
+          # Play services. The default image avoids exhausting the hosted
+          # runner disk while preserving API 35/x86_64/1536 MB constraints.
+          target: default
           arch: x86_64
           profile: pixel_2
           ram-size: 1536M

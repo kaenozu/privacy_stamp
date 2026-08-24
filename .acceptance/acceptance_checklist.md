@@ -1,7 +1,7 @@
 # Acceptance Test Checklist
 
 ## Device/Emulator
-- **Device**: GitHub Actions Android Emulator (API 35 Google APIs, x86_64, 1536 MB RAM)
+- **Device**: GitHub Actions Android Emulator (API 35 default image, x86_64, 1536 MB RAM; Play services are not used)
 - **App**: privacy_stamp (debug build)
 - **Fixture**: `test/fixtures/synthetic-high-res-avd.jpg` (generated deterministically by `tool/acceptance/generate_synthetic_fixture.dart`)
 
