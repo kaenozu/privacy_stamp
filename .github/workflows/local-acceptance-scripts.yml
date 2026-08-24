@@ -144,11 +144,20 @@ jobs:
           set +e
           mkdir -p .ci-logs/android
           printf 'Collecting Android diagnostics at %s\n' "$(date --iso-8601=seconds)" | tee -a .ci-logs/android/progress.log
-          adb devices -l > .ci-logs/android/adb-devices.txt 2>&1
-          adb shell getprop > .ci-logs/android/getprop.txt 2>&1
-          adb shell cat /proc/meminfo > .ci-logs/android/proc-meminfo.txt 2>&1
-          adb shell dumpsys meminfo > .ci-logs/android/dumpsys-meminfo.txt 2>&1
-          adb logcat -d -v threadtime > .ci-logs/android/logcat.txt 2>&1
+          collect_with_timeout() {
+            local output="$1"
+            shift
+            printf 'Collecting %s at %s\n' "$output" "$(date --iso-8601=seconds)" | tee -a .ci-logs/android/progress.log
+            timeout --signal=TERM --kill-after=5s 30s "$@" > "$output" 2>&1
+            local status=$?
+            printf 'Collected %s with exit %s at %s\n' "$output" "$status" "$(date --iso-8601=seconds)" | tee -a .ci-logs/android/progress.log
+            return 0
+          }
+          collect_with_timeout .ci-logs/android/adb-devices.txt adb devices -l
+          collect_with_timeout .ci-logs/android/getprop.txt adb shell getprop
+          collect_with_timeout .ci-logs/android/proc-meminfo.txt adb shell cat /proc/meminfo
+          collect_with_timeout .ci-logs/android/dumpsys-meminfo.txt adb shell dumpsys meminfo
+          collect_with_timeout .ci-logs/android/logcat.txt adb logcat -d -v threadtime
           printf 'Diagnostics collection ended at %s.\n' "$(date --iso-8601=seconds)" | tee -a .ci-logs/android/progress.log
 
       - name: Upload Android diagnostics
