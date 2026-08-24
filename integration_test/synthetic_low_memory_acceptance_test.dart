@@ -79,7 +79,7 @@ Future<AcceptanceImageMetadata> _inspectBytes(
   final file = File('${directory.path}/$name');
   try {
     await file.writeAsBytes(bytes);
-    return inspectAcceptanceImage(file.path);
+    return await inspectAcceptanceImage(file.path);
   } finally {
     await directory.delete(recursive: true);
   }
