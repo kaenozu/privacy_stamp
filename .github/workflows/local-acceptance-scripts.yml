@@ -7,6 +7,9 @@ on:
       - 'tools/local_acceptance/**'
       - 'test/image_metadata_probe_test.dart'
       - 'test/android_runtime_evidence_test.dart'
+      - 'integration_test/**'
+      - 'test/fixtures/synthetic-high-res-avd.jpg'
+      - 'lib/test_harness.dart'
       - 'docs/high-resolution-acceptance.md'
       - '.github/workflows/local-acceptance-scripts.yml'
   push:
@@ -17,6 +20,9 @@ on:
       - 'tools/local_acceptance/**'
       - 'test/image_metadata_probe_test.dart'
       - 'test/android_runtime_evidence_test.dart'
+      - 'integration_test/**'
+      - 'test/fixtures/synthetic-high-res-avd.jpg'
+      - 'lib/test_harness.dart'
       - 'docs/high-resolution-acceptance.md'
       - '.github/workflows/local-acceptance-scripts.yml'
 
@@ -75,3 +81,37 @@ jobs:
       - name: Test evidence helpers
         shell: pwsh
         run: ./tools/local_acceptance/Test-PrivacyStampAcceptanceEvidence.ps1
+
+  android-low-memory-acceptance:
+    name: Android synthetic high-resolution low-memory acceptance
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Get dependencies
+        run: flutter pub get
+      - name: Build debug APK
+        run: flutter build apk --debug
+      - name: Run synthetic acceptance on low-memory API 35 AVD
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_2
+          ram-size: 1536M
+          cores: 2
+          force-avd-creation: true
+          emulator-options: -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect
+          script: flutter test -d emulator-5554 integration_test/synthetic_low_memory_acceptance_test.dart -r expanded
