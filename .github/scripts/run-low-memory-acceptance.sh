@@ -10,7 +10,17 @@ exit_info_after=.ci-logs/android/exit-info-after-relaunch.txt
 mkdir -p .ci-logs/android
 : > "$samples"
 
-printf 'AVD runner action handed off to test script at %s\n' "$(date --iso-8601=seconds)" | tee -a .ci-logs/android/progress.log
+timestamp() {
+  date -u '+%Y-%m-%dT%H:%M:%SZ'
+}
+
+timeout_bin="$(command -v timeout || command -v gtimeout || true)"
+if [[ -z "$timeout_bin" ]]; then
+  echo 'Required timeout utility is unavailable.' | tee "$report"
+  exit 30
+fi
+
+printf 'AVD runner action handed off to test script at %s\n' "$(timestamp)" | tee -a .ci-logs/android/progress.log
 
 mem_total_kb=$(adb shell awk '/^MemTotal:/ {print $2}' /proc/meminfo | tr -d '\r')
 if [[ ! "$mem_total_kb" =~ ^[0-9]+$ ]]; then
@@ -27,7 +37,7 @@ adb logcat -c || true
 
 sample_memory() {
   while true; do
-    now=$(date --iso-8601=seconds)
+    now=$(timestamp)
     pid=$(adb shell pidof "$package" 2>/dev/null | tr -d '\r' | awk '{print $1}')
     if [[ "$pid" =~ ^[0-9]+$ ]]; then
       pss=$(adb shell dumpsys meminfo "$package" 2>/dev/null \
@@ -52,7 +62,7 @@ trap cleanup_sampler EXIT
 
 printf 'Running emulator-backed A-C synthetic acceptance (12 minute step limit).\n' | tee -a .ci-logs/android/progress.log
 set +e
-timeout --signal=TERM --kill-after=30s 12m \
+"$timeout_bin" --signal=TERM --kill-after=30s 12m \
   flutter test -d emulator-5554 integration_test/synthetic_low_memory_acceptance_test.dart -r expanded \
   2>&1 | tee "$log"
 test_status=${PIPESTATUS[0]}
@@ -141,4 +151,4 @@ private_inputs=0
 EOF
 
 cat "$report"
-printf 'Synthetic acceptance ended at %s with PASS.\n' "$(date --iso-8601=seconds)" | tee -a .ci-logs/android/progress.log
+printf 'Synthetic acceptance ended at %s with PASS.\n' "$(timestamp)" | tee -a .ci-logs/android/progress.log
