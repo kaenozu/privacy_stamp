@@ -115,9 +115,9 @@ class _StampHomePageState extends State<StampHomePage> {
     }
   }
 
-  void _notice(String message) => ScaffoldMessenger.of(
-    context,
-  ).showSnackBar(SnackBar(content: Text(message)));
+  void _notice(String message) =>
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(message)));
 
   @override
   Widget build(BuildContext context) => Scaffold(
@@ -443,49 +443,58 @@ class _ImageEditorCanvas extends StatelessWidget {
       return Semantics(
         label: '画像編集領域。画像上をタップすると手動マスクを追加します。',
         container: true,
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTapUp: (details) {
-            if (!layout.imageRect.contains(details.localPosition)) return;
-            final normalized = layout.normalizedRectFromDisplay(
-              ui.Rect.fromCenter(
-                center: details.localPosition,
-                width: 0,
-                height: 0,
-              ),
-            );
-            onAddAt(ui.Offset(normalized.left, normalized.top));
-          },
-          child: ColoredBox(
-            color: Colors.black12,
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                Builder(
-                  builder: (context) {
-                    final target = editorDecodeTarget(
-                      imageSize: imageSize,
-                      canvasSize: canvasSize,
-                      devicePixelRatio: MediaQuery.devicePixelRatioOf(context),
-                    );
-                    return Image.memory(
-                      bytes,
-                      fit: BoxFit.contain,
-                      cacheWidth: target.width,
-                      cacheHeight: target.height,
-                      errorBuilder: (context, error, stackTrace) =>
-                          const Center(child: Text('画像を表示できません')),
-                    );
-                  },
+        child: InteractiveViewer(
+          key: const ValueKey('image-editor-interactive-viewer'),
+          minScale: 1,
+          maxScale: 4,
+          panEnabled: true,
+          scaleEnabled: true,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTapUp: (details) {
+              if (!layout.imageRect.contains(details.localPosition)) return;
+              final normalized = layout.normalizedRectFromDisplay(
+                ui.Rect.fromCenter(
+                  center: details.localPosition,
+                  width: 0,
+                  height: 0,
                 ),
-                for (final stamp in stamps)
-                  _StampOverlay(
-                    stamp: stamp,
-                    rect: layout.displayRectFromNormalized(stamp.rect),
-                    selected: stamp.id == selectedStampId,
-                    onSelect: () => onSelect(stamp),
+              );
+              onAddAt(ui.Offset(normalized.left, normalized.top));
+            },
+            child: ColoredBox(
+              color: Colors.black12,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  Builder(
+                    builder: (context) {
+                      final target = editorDecodeTarget(
+                        imageSize: imageSize,
+                        canvasSize: canvasSize,
+                        devicePixelRatio: MediaQuery.devicePixelRatioOf(
+                          context,
+                        ),
+                      );
+                      return Image.memory(
+                        bytes,
+                        fit: BoxFit.contain,
+                        cacheWidth: target.width,
+                        cacheHeight: target.height,
+                        errorBuilder: (context, error, stackTrace) =>
+                            const Center(child: Text('画像を表示できません')),
+                      );
+                    },
                   ),
-              ],
+                  for (final stamp in stamps)
+                    _StampOverlay(
+                      stamp: stamp,
+                      rect: layout.displayRectFromNormalized(stamp.rect),
+                      selected: stamp.id == selectedStampId,
+                      onSelect: () => onSelect(stamp),
+                    ),
+                ],
+              ),
             ),
           ),
         ),
