@@ -9,6 +9,7 @@ on:
       - 'test/android_runtime_evidence_test.dart'
       - 'integration_test/**'
       - 'test/fixtures/synthetic-high-res-avd.jpg'
+      - 'lib/main.dart'
       - 'lib/test_harness.dart'
       - 'docs/high-resolution-acceptance.md'
       - '.github/scripts/run-low-memory-acceptance.sh'
@@ -23,6 +24,7 @@ on:
       - 'test/android_runtime_evidence_test.dart'
       - 'integration_test/**'
       - 'test/fixtures/synthetic-high-res-avd.jpg'
+      - 'lib/main.dart'
       - 'lib/test_harness.dart'
       - 'docs/high-resolution-acceptance.md'
       - '.github/scripts/run-low-memory-acceptance.sh'
@@ -121,25 +123,22 @@ jobs:
           printf 'Runner: %s\n' "${RUNNER_NAME:-unknown}" | tee -a .ci-logs/android/progress.log
           df -h / | tee .ci-logs/android/disk-before-avd.txt
 
-      - name: Run synthetic acceptance on low-memory API 35 AVD
+      - name: Run synthetic acceptance on low-memory API 35 Google APIs AVD
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 35
-          # This gate exercises Flutter/image behavior only; it does not use
-          # Play services. The default image preserves API 35/x86_64 behavior
-          # without the larger Google APIs image.
-          target: default
+          target: google_apis
           arch: x86_64
           profile: pixel_2
-          # The fixture/export path needs very little guest storage. Keep the
-          # data partition compact so the hosted runner can create the AVD;
-          # RAM remains the acceptance constraint under test.
+          # Acceptance requires an actual 1-2 GiB guest. Both AVD config and
+          # emulator CLI are pinned; the script also rejects MemTotal outside
+          # that window so a device-profile override cannot silently weaken it.
           disk-size: 2048M
           ram-size: 1536M
           heap-size: 256M
           cores: 2
           force-avd-creation: true
-          emulator-options: -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect
+          emulator-options: -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -memory 1536
           script: bash .github/scripts/run-low-memory-acceptance.sh
 
       - name: Collect Android diagnostics
@@ -162,7 +161,7 @@ jobs:
           collect_with_timeout .ci-logs/android/adb-devices.txt adb devices -l
           collect_with_timeout .ci-logs/android/getprop.txt adb shell getprop
           collect_with_timeout .ci-logs/android/proc-meminfo.txt adb shell cat /proc/meminfo
-          collect_with_timeout .ci-logs/android/dumpsys-meminfo.txt adb shell dumpsys meminfo
+          collect_with_timeout .ci-logs/android/dumpsys-meminfo.txt adb shell dumpsys meminfo com.privacy_stamp
           collect_with_timeout .ci-logs/android/logcat.txt adb logcat -d -v threadtime
           printf 'Diagnostics collection ended at %s.\n' "$(date --iso-8601=seconds)" | tee -a .ci-logs/android/progress.log
 
