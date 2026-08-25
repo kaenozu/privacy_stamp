@@ -15,46 +15,61 @@ void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
   testWidgets(
-    '48MP synthetic GPS input survives mask/export on a low-memory AVD',
+    'A: 48MP GPS fixture selects, zooms, pans, masks, and exports metadata-free PNG',
     (tester) async {
-      final fixture = await rootBundle.load(
-        'test/fixtures/synthetic-high-res-avd.jpg',
-      );
-      final source = fixture.buffer.asUint8List();
-      final sourceInfo = await _inspectBytes(source, 'synthetic-input.jpg');
-      expect(sourceInfo.format, 'JPEG');
-      expect(sourceInfo.pixels, greaterThanOrEqualTo(40000000));
-      expect(sourceInfo.gpsPresent, isTrue);
-
+      final fixture = await _fixture();
+      final source = fixture.bytes;
+      final sourceInfo = fixture.metadata;
       final saver = _CapturingSaver();
-      final controller = StampController(
-        picker: const _NoopPicker(),
-        detector: const _NoopDetector(),
-        exporter: const RedactionExporter().encodeAsync,
+      final controller = _controller(
+        picker: _FixturePicker(
+          source,
+          PixelSize(sourceInfo.width, sourceInfo.height),
+        ),
         saver: saver,
-        history: const _InMemoryHistory(),
-      );
-      controller.loadImageForTesting(
-        source,
-        'synthetic-high-res-avd.jpg',
-        PixelSize(sourceInfo.width, sourceInfo.height),
       );
 
       await tester.pumpWidget(
         MaterialApp(home: StampHomePage(controller: controller)),
       );
-      await _pumpBounded(tester);
+      await tester.tap(find.widgetWithText(FilledButton, '画像を選ぶ'));
+      await _pumpBounded(tester, frames: 50);
+
       expect(controller.imageSize, const PixelSize(6000, 8000));
       expect(find.byType(Image), findsOneWidget);
 
-      await tester.tap(find.byType(Image));
+      final canvas = find.byKey(const ValueKey('image-editor-canvas'));
+      expect(canvas, findsOneWidget);
+      await tester.tapAt(tester.getCenter(canvas));
       await _pumpBounded(tester);
       expect(controller.manualStamps, hasLength(1));
 
-      final exportButton = find.widgetWithText(FilledButton, '書き出す');
-      expect(exportButton, findsOneWidget);
-      await tester.tap(exportButton);
-      await _pumpBounded(tester, frames: 80);
+      final viewer = find.byKey(
+        const ValueKey('image-editor-interactive-viewer'),
+      );
+      expect(viewer, findsOneWidget);
+      final center = tester.getCenter(viewer);
+      final left = await tester.startGesture(
+        center - const Offset(30, 0),
+        pointer: 1,
+      );
+      final right = await tester.startGesture(
+        center + const Offset(30, 0),
+        pointer: 2,
+      );
+      await left.moveTo(center - const Offset(90, 0));
+      await right.moveTo(center + const Offset(90, 0));
+      await tester.pump();
+      await left.up();
+      await right.up();
+      await tester.drag(viewer, const Offset(24, 18));
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+
+      await tester.tap(find.widgetWithText(FilledButton, '書き出す'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilledButton, '確認して書き出す'));
+      await _pumpBounded(tester, frames: 100);
 
       expect(controller.exportCount, 1);
       final output = saver.bytes;
@@ -64,9 +79,85 @@ void main() {
       expect(outputInfo.pixels, sourceInfo.pixels);
       expect(outputInfo.gpsPresent, isFalse);
       expect(outputInfo.metadataContainerPresent, isFalse);
+      expect(tester.takeException(), isNull);
     },
-    timeout: const Timeout(Duration(minutes: 5)),
+    timeout: const Timeout(Duration(minutes: 6)),
   );
+
+  testWidgets('B: picker cancellation leaves the app usable', (tester) async {
+    final controller = _controller(
+      picker: const _NoopPicker(),
+      saver: _CapturingSaver(),
+    );
+    await tester.pumpWidget(
+      MaterialApp(home: StampHomePage(controller: controller)),
+    );
+
+    await tester.tap(find.widgetWithText(FilledButton, '画像を選ぶ'));
+    await _pumpBounded(tester);
+
+    expect(controller.hasImage, isFalse);
+    expect(controller.isBusy, isFalse);
+    expect(find.widgetWithText(FilledButton, '画像を選ぶ'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('C: discard and lifecycle pause/resume leave no stale editor state', (
+    tester,
+  ) async {
+    final fixture = await _fixture();
+    final sourceInfo = fixture.metadata;
+    final controller = _controller(
+      picker: _FixturePicker(
+        fixture.bytes,
+        PixelSize(sourceInfo.width, sourceInfo.height),
+      ),
+      saver: _CapturingSaver(),
+    );
+    await tester.pumpWidget(
+      MaterialApp(home: StampHomePage(controller: controller)),
+    );
+    await tester.tap(find.widgetWithText(FilledButton, '画像を選ぶ'));
+    await _pumpBounded(tester, frames: 50);
+    expect(controller.hasImage, isTrue);
+
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    await tester.pump();
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+
+    await tester.tap(find.widgetWithText(OutlinedButton, '別の画像'));
+    await _pumpBounded(tester);
+    expect(controller.hasImage, isFalse);
+    expect(controller.stamps, isEmpty);
+    expect(controller.isBusy, isFalse);
+    expect(find.widgetWithText(FilledButton, '画像を選ぶ'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+}
+
+StampController _controller({
+  required ImagePickerGateway picker,
+  required ImageSaverGateway saver,
+}) => StampController(
+  picker: picker,
+  detector: const _NoopDetector(),
+  exporter: const RedactionExporter().encodeAsync,
+  saver: saver,
+  history: const _InMemoryHistory(),
+);
+
+Future<({Uint8List bytes, AcceptanceImageMetadata metadata})> _fixture() async {
+  final fixture = await rootBundle.load(
+    'test/fixtures/synthetic-high-res-avd.jpg',
+  );
+  final source = fixture.buffer.asUint8List();
+  final sourceInfo = await _inspectBytes(source, 'synthetic-input.jpg');
+  expect(sourceInfo.format, 'JPEG');
+  expect(sourceInfo.pixels, greaterThanOrEqualTo(40000000));
+  expect(sourceInfo.gpsPresent, isTrue);
+  return (bytes: source, metadata: sourceInfo);
 }
 
 Future<AcceptanceImageMetadata> _inspectBytes(
@@ -99,6 +190,20 @@ class _CapturingSaver implements ImageSaverGateway {
     this.bytes = bytes;
     return true;
   }
+}
+
+class _FixturePicker implements ImagePickerGateway {
+  const _FixturePicker(this.bytes, this.imageSize);
+
+  final Uint8List bytes;
+  final PixelSize imageSize;
+
+  @override
+  Future<PickedImage?> pick() async => PickedImage(
+    bytes: bytes,
+    name: 'synthetic-high-res-avd.jpg',
+    imageSize: imageSize,
+  );
 }
 
 class _NoopPicker implements ImagePickerGateway {
