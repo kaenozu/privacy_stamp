@@ -12,4 +12,4 @@ The CI job runs on GitHub's standard Intel macOS runner because the previously a
 - output pixel count equals input, GPS absent, sensitive PNG metadata absent;
 - PID and peak PSS recorded, with zero involuntary restart, crash, ANR, OOM, or low-memory kill.
 
-The pull-request run proves the candidate branch. Issue #17 is not complete until the same workflow passes again after merge on the then-current clean `main`, so the evidence Source SHA is the accepted main SHA.
+The pull-request run proves the candidate branch and must pass on the exact PR head. Issue #17 is not complete until the same workflow passes again after merge on the then-current clean `main`, so the evidence Source SHA is the accepted main SHA.
