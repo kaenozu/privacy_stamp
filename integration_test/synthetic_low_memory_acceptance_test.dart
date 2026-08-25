@@ -102,39 +102,40 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('C: discard and lifecycle pause/resume leave no stale editor state', (
-    tester,
-  ) async {
-    final fixture = await _fixture();
-    final sourceInfo = fixture.metadata;
-    final controller = _controller(
-      picker: _FixturePicker(
-        fixture.bytes,
-        PixelSize(sourceInfo.width, sourceInfo.height),
-      ),
-      saver: _CapturingSaver(),
-    );
-    await tester.pumpWidget(
-      MaterialApp(home: StampHomePage(controller: controller)),
-    );
-    await tester.tap(find.widgetWithText(FilledButton, '画像を選ぶ'));
-    await _pumpBounded(tester, frames: 50);
-    expect(controller.hasImage, isTrue);
+  testWidgets(
+    'C: discard and lifecycle pause/resume leave no stale editor state',
+    (tester) async {
+      final fixture = await _fixture();
+      final sourceInfo = fixture.metadata;
+      final controller = _controller(
+        picker: _FixturePicker(
+          fixture.bytes,
+          PixelSize(sourceInfo.width, sourceInfo.height),
+        ),
+        saver: _CapturingSaver(),
+      );
+      await tester.pumpWidget(
+        MaterialApp(home: StampHomePage(controller: controller)),
+      );
+      await tester.tap(find.widgetWithText(FilledButton, '画像を選ぶ'));
+      await _pumpBounded(tester, frames: 50);
+      expect(controller.hasImage, isTrue);
 
-    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
-    await tester.pump();
-    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
-    await tester.pump();
-    expect(tester.takeException(), isNull);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      await tester.pump();
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pump();
+      expect(tester.takeException(), isNull);
 
-    await tester.tap(find.widgetWithText(OutlinedButton, '別の画像'));
-    await _pumpBounded(tester);
-    expect(controller.hasImage, isFalse);
-    expect(controller.stamps, isEmpty);
-    expect(controller.isBusy, isFalse);
-    expect(find.widgetWithText(FilledButton, '画像を選ぶ'), findsOneWidget);
-    expect(tester.takeException(), isNull);
-  });
+      await tester.tap(find.widgetWithText(OutlinedButton, '別の画像'));
+      await _pumpBounded(tester);
+      expect(controller.hasImage, isFalse);
+      expect(controller.stamps, isEmpty);
+      expect(controller.isBusy, isFalse);
+      expect(find.widgetWithText(FilledButton, '画像を選ぶ'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
 }
 
 StampController _controller({
