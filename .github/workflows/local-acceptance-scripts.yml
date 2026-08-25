@@ -121,7 +121,12 @@ jobs:
           target: default
           arch: x86_64
           profile: pixel_2
+          # Keep the synthetic gate within hosted-runner storage while leaving
+          # the image/ram contract explicit. This is not physical-device or
+          # Play acceptance.
+          disk-size: 4096M
           ram-size: 1536M
+          heap-size: 256M
           cores: 2
           force-avd-creation: true
           emulator-options: -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect
