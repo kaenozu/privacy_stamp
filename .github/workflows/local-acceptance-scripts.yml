@@ -90,11 +90,18 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+      - name: Free runner disk for API 35 AVD
+        shell: bash
+        run: |
+          set -euxo pipefail
+          df -h /
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost || true
+          docker system prune -af || true
+          df -h /
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
-          cache: gradle
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
@@ -110,21 +117,22 @@ jobs:
           mkdir -p .ci-logs/android
           printf 'Android acceptance started at %s\n' "$(date --iso-8601=seconds)" | tee .ci-logs/android/progress.log
           printf 'Runner: %s\n' "${RUNNER_NAME:-unknown}" | tee -a .ci-logs/android/progress.log
+          df -h / | tee .ci-logs/android/disk-before-avd.txt
 
       - name: Run synthetic acceptance on low-memory API 35 AVD
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 35
           # This gate exercises Flutter/image behavior only; it does not use
-          # Play services. The default image avoids exhausting the hosted
-          # runner disk while preserving API 35/x86_64/1536 MB constraints.
+          # Play services. The default image preserves API 35/x86_64 behavior
+          # without the larger Google APIs image.
           target: default
           arch: x86_64
           profile: pixel_2
-          # Keep the synthetic gate within hosted-runner storage while leaving
-          # the image/ram contract explicit. This is not physical-device or
-          # Play acceptance.
-          disk-size: 4096M
+          # The fixture/export path needs very little guest storage. Keep the
+          # data partition compact so the hosted runner can create the AVD;
+          # RAM remains the acceptance constraint under test.
+          disk-size: 2048M
           ram-size: 1536M
           heap-size: 256M
           cores: 2
@@ -149,6 +157,7 @@ jobs:
           set +e
           mkdir -p .ci-logs/android
           printf 'Collecting Android diagnostics at %s\n' "$(date --iso-8601=seconds)" | tee -a .ci-logs/android/progress.log
+          df -h / > .ci-logs/android/disk-after-avd.txt 2>&1
           collect_with_timeout() {
             local output="$1"
             shift
