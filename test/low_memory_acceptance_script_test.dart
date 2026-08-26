@@ -9,6 +9,7 @@ void main() {
     ).readAsStringSync();
 
     expect(script, contains('flutter drive'));
+    expect(script, contains('--no-pub'));
     expect(script, contains('--driver=test_driver/integration_test.dart'));
     expect(script, contains(r'--use-application-binary="$apk_path"'));
     expect(

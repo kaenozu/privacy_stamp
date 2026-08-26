@@ -111,6 +111,7 @@ set +e
   --driver=test_driver/integration_test.dart \
   --target=integration_test/synthetic_low_memory_acceptance_test.dart \
   --use-application-binary="$apk_path" \
+  --no-pub \
   2>&1 | tee "$log"
 test_status=${PIPESTATUS[0]}
 set -e
