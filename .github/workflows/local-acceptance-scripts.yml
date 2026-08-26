@@ -135,15 +135,15 @@ jobs:
           target: google_apis
           arch: x86_64
           profile: pixel_2
-          # Acceptance requires an actual 1-2 GiB guest. Both AVD config and
-          # emulator CLI are pinned; the script also rejects MemTotal outside
-          # that window so a device-profile override cannot silently weaken it.
+          # Acceptance requires an actual 1-2 GiB guest. API 34+ phone AVDs
+          # otherwise enforce a 2560MB emulator minimum; -lowram explicitly
+          # removes that lower bound while the script still verifies MemTotal.
           disk-size: 2048M
           ram-size: 1536
           heap-size: 256M
           cores: 2
           force-avd-creation: true
-          emulator-options: -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -memory 1536
+          emulator-options: -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -memory 1536 -lowram
           script: bash .github/scripts/run-low-memory-acceptance.sh
 
       - name: Collect Android diagnostics
