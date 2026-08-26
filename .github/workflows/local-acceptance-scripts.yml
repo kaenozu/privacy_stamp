@@ -7,6 +7,7 @@ on:
       - 'tools/local_acceptance/**'
       - 'test/image_metadata_probe_test.dart'
       - 'test/android_runtime_evidence_test.dart'
+      - 'test/low_memory_acceptance_script_test.dart'
       - 'integration_test/**'
       - 'test/fixtures/synthetic-high-res-avd.jpg'
       - 'lib/main.dart'
@@ -22,6 +23,7 @@ on:
       - 'tools/local_acceptance/**'
       - 'test/image_metadata_probe_test.dart'
       - 'test/android_runtime_evidence_test.dart'
+      - 'test/low_memory_acceptance_script_test.dart'
       - 'integration_test/**'
       - 'test/fixtures/synthetic-high-res-avd.jpg'
       - 'lib/main.dart'
@@ -51,7 +53,7 @@ jobs:
           dart format --output=none --set-exit-if-changed tool/acceptance test/image_metadata_probe_test.dart test/android_runtime_evidence_test.dart
           flutter analyze
       - name: Test acceptance probes
-        run: flutter test test/image_metadata_probe_test.dart test/android_runtime_evidence_test.dart
+        run: flutter test test/image_metadata_probe_test.dart test/android_runtime_evidence_test.dart test/low_memory_acceptance_script_test.dart
 
   validate-powershell:
     runs-on: windows-latest

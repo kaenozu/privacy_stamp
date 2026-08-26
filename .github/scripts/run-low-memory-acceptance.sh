@@ -107,7 +107,10 @@ trap cleanup_sampler EXIT
 printf 'Running emulator-backed A-C synthetic acceptance (12 minute step limit).\n' | tee -a .ci-logs/android/progress.log
 set +e
 "$timeout_bin" --signal=TERM --kill-after=30s 12m \
-  flutter test -d emulator-5554 integration_test/synthetic_low_memory_acceptance_test.dart -r expanded \
+  flutter drive -d emulator-5554 \
+  --driver=test_driver/integration_test.dart \
+  --target=integration_test/synthetic_low_memory_acceptance_test.dart \
+  --use-application-binary="$apk_path" \
   2>&1 | tee "$log"
 test_status=${PIPESTATUS[0]}
 set -e
