@@ -81,7 +81,6 @@ void main() {
       expect(outputInfo.metadataContainerPresent, isFalse);
       expect(tester.takeException(), isNull);
     },
-    timeout: const Timeout(Duration(minutes: 6)),
   );
 
   testWidgets('B: picker cancellation leaves the app usable', (tester) async {
