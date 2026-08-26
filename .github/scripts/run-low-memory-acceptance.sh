@@ -48,6 +48,16 @@ if [[ "$abi" != "x86_64" ]]; then
   echo "Unexpected ABI: $abi (expected x86_64)" | tee "$report"
   exit 42
 fi
+apk_path="build/app/outputs/flutter-apk/app-debug.apk"
+if [[ ! -f "$apk_path" ]]; then
+  echo "Debug APK not found at $apk_path" | tee "$report"
+  exit 44
+fi
+adb install -r "$apk_path" > .ci-logs/android/apk-install.log 2>&1
+if [[ $? -ne 0 ]]; then
+  echo "Failed to install debug APK." | tee "$report"
+  exit 45
+fi
 if ! adb shell pm list packages 2>/dev/null | grep -q "^package:${package}$"; then
   echo "Expected package ${package} is not installed." | tee "$report"
   exit 43
