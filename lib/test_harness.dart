@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:image/image.dart' as image;
 
 import 'features/redaction/models/redaction_models.dart';
 import 'features/redaction/presentation/stamp_controller.dart';
@@ -31,7 +32,11 @@ class _TestHarnessState extends State<TestHarness> {
         'test/fixtures/synthetic-high-res-avd.jpg',
       );
       final data = bytes.buffer.asUint8List();
-      final size = const PixelSize(1920, 1080);
+      final decoded = image.decodeImage(data);
+      if (decoded == null) {
+        throw const FormatException('Synthetic fixture could not be decoded.');
+      }
+      final size = PixelSize(decoded.width, decoded.height);
       _controller.loadImageForTesting(data, 'synthetic-high-res-avd.jpg', size);
       if (!mounted) return;
       setState(() {
