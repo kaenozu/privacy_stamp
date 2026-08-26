@@ -142,6 +142,7 @@ jobs:
           heap-size: 256M
           cores: 2
           force-avd-creation: true
+          emulator-boot-timeout: 600
           emulator-options: -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -memory 1536
           script: bash .github/scripts/run-low-memory-acceptance.sh
 
