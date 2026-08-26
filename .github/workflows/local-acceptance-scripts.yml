@@ -143,6 +143,7 @@ jobs:
           cores: 2
           force-avd-creation: true
           emulator-boot-timeout: 600
+          pre-emulator-launch-script: bash .github/scripts/configure-low-memory-avd.sh
           emulator-options: -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -memory 1536
           script: bash .github/scripts/run-low-memory-acceptance.sh
 
