@@ -15,5 +15,14 @@ void main() {
       script,
       isNot(contains('flutter test -d emulator-5554 integration_test/')),
     );
+
+    final integrationTest = File(
+      'integration_test/synthetic_low_memory_acceptance_test.dart',
+    ).readAsStringSync();
+    expect(
+      integrationTest,
+      isNot(contains('pumpAndSettle()')),
+      reason: 'The low-memory 48MP route must use bounded waits.',
+    );
   });
 }

@@ -67,7 +67,12 @@ void main() {
       expect(tester.takeException(), isNull);
 
       await tester.tap(find.widgetWithText(FilledButton, '書き出す'));
-      await tester.pumpAndSettle();
+      // The low-memory AVD and the 48MP fixture continuously schedule frames
+      // while the export confirmation is animating. An unbounded
+      // pumpAndSettle therefore never returns and masks the actual A/B/C
+      // acceptance result. Keep the wait finite; the following keyed text
+      // finder is the required confirmation milestone.
+      await _pumpBounded(tester, frames: 30);
       await tester.tap(find.widgetWithText(FilledButton, '確認して書き出す'));
       await _pumpBounded(tester, frames: 100);
 
