@@ -22,5 +22,11 @@ set_config() {
 
 set_config hw.ramSize 1536
 set_config hw.heapSize 256
+hardware_config="$(dirname "$config_file")/hardware-qemu.ini"
+if [[ -f "$hardware_config" ]]; then
+  config_file="$hardware_config"
+  set_config hw.ramSize 1536
+  set_config hw.heapSize 256
+fi
 printf 'Low-memory AVD config: %s\n' "$config_file"
-grep -E '^(hw\.ramSize|hw\.heapSize)=' "$config_file"
+grep -E '^(hw\.ramSize|hw\.heapSize)=' "$(dirname "$config_file")/config.ini" "$config_file"
