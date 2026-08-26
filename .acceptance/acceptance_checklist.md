@@ -1,9 +1,26 @@
 # Acceptance Test Checklist
 
 ## Device/Emulator
-- **Device**: Android Emulator (API 34/35, x86_64)
+- **Device**: GitHub Actions Android Emulator (API 35 default image, x86_64, 1536 MB RAM; Play services are not used)
 - **App**: privacy_stamp (debug build)
-- **Fixture**: `.acceptance/synthetic-high-res-avd.jpg` pushed to `/sdcard/Download/`
+- **Fixture**: `test/fixtures/synthetic-high-res-avd.jpg` (generated deterministically by `tool/acceptance/generate_synthetic_fixture.dart`)
+
+## Automated low-memory gate
+The device gate runs on every pull request that changes acceptance tooling, the
+fixture, harness, or integration tests:
+
+```bash
+flutter build apk --debug
+flutter test -d emulator-5554 integration_test/synthetic_low_memory_acceptance_test.dart -r expanded
+```
+
+The test decodes the bundled 6000x8000 (48 MP) JPEG, requires GPS metadata on
+input, drives the editor and mask action, captures the saved PNG through a test
+saver, and checks equal pixel count plus absence of GPS and PNG metadata. It
+uses bounded pumps rather than `pumpAndSettle()` so a continuously scheduled
+frame cannot make the acceptance job hang. The emulator job reports an
+automated synthetic gate; physical/private-image/Play signing acceptance is
+not claimed by this test.
 
 ## Run A: Happy Path - Load & Display
 - [x] A1. App launches to picker screen

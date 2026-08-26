@@ -7,7 +7,12 @@ on:
       - 'tools/local_acceptance/**'
       - 'test/image_metadata_probe_test.dart'
       - 'test/android_runtime_evidence_test.dart'
+      - 'integration_test/**'
+      - 'test/fixtures/synthetic-high-res-avd.jpg'
+      - 'lib/main.dart'
+      - 'lib/test_harness.dart'
       - 'docs/high-resolution-acceptance.md'
+      - '.github/scripts/run-low-memory-acceptance.sh'
       - '.github/workflows/local-acceptance-scripts.yml'
   push:
     branches:
@@ -17,7 +22,12 @@ on:
       - 'tools/local_acceptance/**'
       - 'test/image_metadata_probe_test.dart'
       - 'test/android_runtime_evidence_test.dart'
+      - 'integration_test/**'
+      - 'test/fixtures/synthetic-high-res-avd.jpg'
+      - 'lib/main.dart'
+      - 'lib/test_harness.dart'
       - 'docs/high-resolution-acceptance.md'
+      - '.github/scripts/run-low-memory-acceptance.sh'
       - '.github/workflows/local-acceptance-scripts.yml'
 
 permissions:
@@ -75,3 +85,100 @@ jobs:
       - name: Test evidence helpers
         shell: pwsh
         run: ./tools/local_acceptance/Test-PrivacyStampAcceptanceEvidence.ps1
+
+  android-low-memory-acceptance:
+    name: Android synthetic high-resolution low-memory acceptance
+    # The standard Ubuntu runner exposed no usable /dev/kvm in run
+    # 32816566466, so API 35 x86_64 stayed offline until the boot timeout.
+    # Use GitHub's standard Intel macOS runner so the Android emulator can use
+    # host virtualization without weakening the x86_64 / 1-2 GiB acceptance.
+    runs-on: macos-15-intel
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Prepare macOS acceptance tools
+        shell: bash
+        run: |
+          set -euxo pipefail
+          df -h /
+          brew install coreutils
+          command -v gtimeout
+          df -h /
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Get dependencies
+        run: flutter pub get
+      - name: Build debug APK
+        run: flutter build apk --debug
+      - name: Prepare Android diagnostics
+        shell: bash
+        run: |
+          set -u
+          mkdir -p .ci-logs/android
+          printf 'Android acceptance started at %s\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" | tee .ci-logs/android/progress.log
+          printf 'Runner: %s\n' "${RUNNER_NAME:-unknown}" | tee -a .ci-logs/android/progress.log
+          df -h / | tee .ci-logs/android/disk-before-avd.txt
+
+      - name: Run synthetic acceptance on low-memory API 35 Google APIs AVD
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_2
+          # Acceptance requires an actual 1-2 GiB guest. Both AVD config and
+          # emulator CLI are pinned; the script also rejects MemTotal outside
+          # that window so a device-profile override cannot silently weaken it.
+          disk-size: 2048M
+          ram-size: 1536M
+          heap-size: 256M
+          cores: 2
+          force-avd-creation: true
+          emulator-options: -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -memory 1536
+          script: bash .github/scripts/run-low-memory-acceptance.sh
+
+      - name: Collect Android diagnostics
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          mkdir -p .ci-logs/android
+          timeout_bin="$(command -v gtimeout || command -v timeout || true)"
+          printf 'Collecting Android diagnostics at %s\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" | tee -a .ci-logs/android/progress.log
+          df -h / > .ci-logs/android/disk-after-avd.txt 2>&1
+          collect_with_timeout() {
+            local output="$1"
+            shift
+            printf 'Collecting %s at %s\n' "$output" "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" | tee -a .ci-logs/android/progress.log
+            if [[ -n "$timeout_bin" ]]; then
+              "$timeout_bin" --signal=TERM --kill-after=5s 30s "$@" > "$output" 2>&1
+            else
+              "$@" > "$output" 2>&1
+            fi
+            local status=$?
+            printf 'Collected %s with exit %s at %s\n' "$output" "$status" "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" | tee -a .ci-logs/android/progress.log
+            return 0
+          }
+          collect_with_timeout .ci-logs/android/adb-devices.txt adb devices -l
+          collect_with_timeout .ci-logs/android/getprop.txt adb shell getprop
+          collect_with_timeout .ci-logs/android/proc-meminfo.txt adb shell cat /proc/meminfo
+          collect_with_timeout .ci-logs/android/dumpsys-meminfo.txt adb shell dumpsys meminfo com.privacy_stamp
+          collect_with_timeout .ci-logs/android/logcat.txt adb logcat -d -v threadtime
+          printf 'Diagnostics collection ended at %s.\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" | tee -a .ci-logs/android/progress.log
+
+      - name: Upload Android diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-low-memory-acceptance-${{ github.run_id }}
+          if-no-files-found: warn
+          include-hidden-files: true
+          path: .ci-logs/android/
