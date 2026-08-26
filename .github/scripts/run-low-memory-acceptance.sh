@@ -22,6 +22,37 @@ fi
 
 printf 'AVD runner action handed off to test script at %s\n' "$(timestamp)" | tee -a .ci-logs/android/progress.log
 
+actual_sha=$(git rev-parse HEAD 2>/dev/null || echo 'unknown')
+printf 'Actual checkout SHA: %s\n' "$actual_sha" | tee -a .ci-logs/android/progress.log
+
+preflight() {
+  local label="$1"
+  shift
+  if ! "$@" > .ci-logs/android/preflight-${label}.txt 2>&1; then
+    echo "Pre-flight check failed: ${label}" | tee "$report"
+    exit 40
+  fi
+}
+
+preflight adb-devices adb devices -l
+preflight getprop adb shell getprop
+preflight meminfo adb shell cat /proc/meminfo
+
+api=$(adb shell getprop ro.build.version.sdk | tr -d '\r')
+abi=$(adb shell getprop ro.product.cpu.abi | tr -d '\r')
+if [[ "$api" != "35" ]]; then
+  echo "Unexpected API level: $api (expected 35)" | tee "$report"
+  exit 41
+fi
+if [[ "$abi" != "x86_64" ]]; then
+  echo "Unexpected ABI: $abi (expected x86_64)" | tee "$report"
+  exit 42
+fi
+if ! adb shell pm list packages 2>/dev/null | grep -q "^package:${package}$"; then
+  echo "Expected package ${package} is not installed." | tee "$report"
+  exit 43
+fi
+
 # Keep awk on the runner: adb shell argument forwarding can split the awk
 # program on macOS-hosted runners, turning `{print $2}` into filenames.
 mem_total_kb=$(adb shell cat /proc/meminfo | awk '/^MemTotal:/ {print $2}' | tr -d '
@@ -131,7 +162,7 @@ fi
 
 cat > "$report" <<EOF
 result=PASS
-source_sha=${GITHUB_SHA:-unknown}
+source_sha=${actual_sha}
 api_level=35
 target=google_apis
 arch=x86_64
