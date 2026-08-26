@@ -22,9 +22,10 @@ fi
 
 printf 'AVD runner action handed off to test script at %s\n' "$(timestamp)" | tee -a .ci-logs/android/progress.log
 
-# Read the guest file through adb, then parse it on the host. Keeping awk
-# outside `adb shell` avoids macOS/remote-shell quoting differences.
-mem_total_kb=$(adb shell cat /proc/meminfo | awk '/^MemTotal:/ {print $2}' | tr -d '\r')
+# Keep awk on the runner: adb shell argument forwarding can split the awk
+# program on macOS-hosted runners, turning `{print $2}` into filenames.
+mem_total_kb=$(adb shell cat /proc/meminfo | awk '/^MemTotal:/ {print $2}' | tr -d '
+')
 if [[ ! "$mem_total_kb" =~ ^[0-9]+$ ]]; then
   echo 'Unable to read guest MemTotal.' | tee "$report"
   exit 31
