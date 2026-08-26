@@ -10,10 +10,7 @@ void main() {
 
     expect(script, contains('flutter drive'));
     expect(script, contains('--driver=test_driver/integration_test.dart'));
-    expect(
-      script,
-      contains(r'--use-application-binary="$apk_path"'),
-    );
+    expect(script, contains(r'--use-application-binary="$apk_path"'));
     expect(
       script,
       isNot(contains('flutter test -d emulator-5554 integration_test/')),
