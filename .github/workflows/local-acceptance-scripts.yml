@@ -119,8 +119,18 @@ jobs:
           cache: true
       - name: Get dependencies
         run: flutter pub get
-      - name: Build debug APK
-        run: flutter build apk --debug
+      - name: Build production and integration-test debug APKs
+        shell: bash
+        run: |
+          set -euxo pipefail
+          apk_dir=build/app/outputs/flutter-apk
+          flutter build apk --debug
+          cp "$apk_dir/app-debug.apk" "$apk_dir/app-debug-main.apk"
+          flutter build apk --debug --target=integration_test/synthetic_low_memory_acceptance_test.dart
+          cp "$apk_dir/app-debug.apk" "$apk_dir/app-debug-integration.apk"
+          cp "$apk_dir/app-debug-main.apk" "$apk_dir/app-debug.apk"
+          test -s "$apk_dir/app-debug-main.apk"
+          test -s "$apk_dir/app-debug-integration.apk"
       - name: Prepare Android diagnostics
         shell: bash
         run: |
