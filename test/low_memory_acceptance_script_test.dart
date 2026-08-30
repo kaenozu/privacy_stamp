@@ -34,7 +34,7 @@ void main() {
 
     expect(
       script,
-      contains("grep -q 'ACCEPTANCE_MILESTONE .* A:start' \"\$log\""),
+      contains(r'''grep -q 'ACCEPTANCE_MILESTONE .* A:start' "$log"'''),
       reason: 'ADB memory sampling must wait until flutter drive is attached.',
     );
     expect(
