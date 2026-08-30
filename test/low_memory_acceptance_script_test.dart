@@ -26,4 +26,20 @@ void main() {
       reason: 'The low-memory 48MP route must use bounded waits.',
     );
   });
+
+  test('does not contend with flutter drive while VM service starts', () {
+    final script = File(
+      '.github/scripts/run-low-memory-acceptance.sh',
+    ).readAsStringSync();
+
+    expect(
+      script,
+      contains("grep -q 'ACCEPTANCE_MILESTONE .* A:start' \"\$log\""),
+      reason: 'ADB memory sampling must wait until flutter drive is attached.',
+    );
+    expect(
+      script.indexOf("grep -q 'ACCEPTANCE_MILESTONE .* A:start'"),
+      lessThan(script.indexOf('pid=$(adb shell pidof')),
+    );
+  });
 }
