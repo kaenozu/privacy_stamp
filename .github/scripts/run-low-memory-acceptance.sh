@@ -65,8 +65,7 @@ fi
 
 # Keep awk on the runner: adb shell argument forwarding can split the awk
 # program on macOS-hosted runners, turning `{print $2}` into filenames.
-mem_total_kb=$(adb shell cat /proc/meminfo | awk '/^MemTotal:/ {print $2}' | tr -d '
-')
+mem_total_kb=$(adb shell cat /proc/meminfo | awk '/^MemTotal:/ {print $2}' | tr -d '\r')
 if [[ ! "$mem_total_kb" =~ ^[0-9]+$ ]]; then
   echo 'Unable to read guest MemTotal.' | tee "$report"
   exit 31
@@ -119,7 +118,15 @@ cleanup_sampler
 trap - EXIT
 
 if (( test_status != 0 )); then
-  printf 'Synthetic A-C acceptance failed with exit %s.\n' "$test_status" | tee "$report"
+  last_milestone=$(grep 'ACCEPTANCE_MILESTONE' "$log" | tail -n 1 || true)
+  {
+    printf 'Synthetic A-C acceptance failed with exit %s.\n' "$test_status"
+    if [[ -n "$last_milestone" ]]; then
+      printf 'last_milestone=%s\n' "$last_milestone"
+    else
+      printf 'last_milestone=none\n'
+    fi
+  } | tee "$report"
   exit "$test_status"
 fi
 
