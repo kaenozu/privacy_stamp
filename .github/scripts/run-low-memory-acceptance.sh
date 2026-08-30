@@ -48,14 +48,19 @@ if [[ "$abi" != "x86_64" ]]; then
   echo "Unexpected ABI: $abi (expected x86_64)" | tee "$report"
   exit 42
 fi
-apk_path="build/app/outputs/flutter-apk/app-debug.apk"
-if [[ ! -f "$apk_path" ]]; then
-  echo "Debug APK not found at $apk_path" | tee "$report"
+integration_apk_path="build/app/outputs/flutter-apk/app-debug-integration.apk"
+main_apk_path="build/app/outputs/flutter-apk/app-debug-main.apk"
+if [[ ! -f "$integration_apk_path" ]]; then
+  echo "Integration-test APK not found at $integration_apk_path" | tee "$report"
   exit 44
 fi
-adb install -r "$apk_path" > .ci-logs/android/apk-install.log 2>&1
+if [[ ! -f "$main_apk_path" ]]; then
+  echo "Production debug APK not found at $main_apk_path" | tee "$report"
+  exit 46
+fi
+adb install -r "$integration_apk_path" > .ci-logs/android/apk-install-integration.log 2>&1
 if [[ $? -ne 0 ]]; then
-  echo "Failed to install debug APK." | tee "$report"
+  echo "Failed to install integration-test debug APK." | tee "$report"
   exit 45
 fi
 if ! adb shell pm list packages 2>/dev/null | grep -q "^package:${package}$"; then
@@ -117,7 +122,7 @@ set +e
   flutter drive -d emulator-5554 \
   --driver=test_driver/integration_test.dart \
   --target=integration_test/synthetic_low_memory_acceptance_test.dart \
-  --use-application-binary="$apk_path" \
+  --use-application-binary="$integration_apk_path" \
   --no-pub \
   2>&1 | tee "$log"
 test_status=${PIPESTATUS[0]}
@@ -157,6 +162,16 @@ fi
 if (( restart_count != 0 )); then
   printf 'Unexpected PID restart(s) during A-C: %s\n' "$restart_count" | tee "$report"
   exit 35
+fi
+
+# A-C deliberately runs the integration-test entry point. Reinstall the normal
+# production debug APK before lifecycle D so force-stop/relaunch exercises the
+# app's real launcher entry point rather than the test harness.
+printf 'Restoring production debug APK before lifecycle D.\n' | tee -a .ci-logs/android/progress.log
+adb install -r "$main_apk_path" > .ci-logs/android/apk-install-main.log 2>&1
+if [[ $? -ne 0 ]]; then
+  echo 'Failed to restore production debug APK before lifecycle D.' | tee "$report"
+  exit 47
 fi
 
 printf 'Running D: force-stop and relaunch lifecycle acceptance.\n' | tee -a .ci-logs/android/progress.log
