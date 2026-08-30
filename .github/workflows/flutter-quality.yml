@@ -173,25 +173,21 @@ jobs:
             echo "| Tests failed | ${failed_test_count} |"
             echo "| Analyzer warning/info lines | ${warnings} |"
             echo
-            echo "Artifacts: CI logs, Web build, debug APK, and a release smoke APK are uploaded when available."
+            echo "CI execution logs are uploaded as the quality artifact. Build outputs are validated in-place by the named build gates and are not uploaded to keep hosted-runner artifact handling lightweight."
             echo "The release smoke APK explicitly opts into debug signing for CI only; it is not a distributable release."
             echo
             echo "### Gate results"
             awk -F '\t' '{ icon = ($2 == "success" ? "PASS" : "FAIL"); printf "- `%s`: %s (%s)\n", $1, icon, $2 }' .ci-logs/gates.tsv
           } >> "${GITHUB_STEP_SUMMARY}"
 
-      - name: Upload CI logs and build artifacts
+      - name: Upload CI logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: flutter-quality-gates-${{ github.run_id }}
+          name: flutter-quality-logs-${{ github.run_id }}
           if-no-files-found: warn
           include-hidden-files: true
-          path: |
-            .ci-logs/
-            build/web/
-            build/app/outputs/flutter-apk/app-debug.apk
-            build/app/outputs/flutter-apk/app-release.apk
+          path: .ci-logs/
 
       - name: Enforce quality result
         if: always()
