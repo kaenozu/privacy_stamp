@@ -96,7 +96,11 @@ sample_memory() {
     now=$(timestamp)
     pid=$(adb shell pidof "$package" 2>/dev/null | tr -d '\r' | awk '{print $1}')
     if [[ "$pid" =~ ^[0-9]+$ ]]; then
-      pss=$(adb shell dumpsys meminfo "$package" 2>/dev/null \
+      # --local keeps PSS collection inside system_server instead of invoking
+      # the target process's dumpMemInfo callback. Regular dumpsys meminfo was
+      # forcing repeated explicit GCs in the 1.5 GiB acceptance app and could
+      # stall the workload that this sampler is intended to observe.
+      pss=$(adb shell dumpsys meminfo --local "$package" 2>/dev/null \
         | awk '/TOTAL PSS:/ {print $3; exit} /^ *TOTAL +[0-9]+/ {print $2; exit}' \
         | tr -d '\r')
       if [[ ! "$pss" =~ ^[0-9]+$ ]]; then
