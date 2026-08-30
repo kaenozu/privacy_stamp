@@ -33,7 +33,7 @@ void main() {
       reason: 'Lifecycle D must restore and launch the production entry point.',
     );
     expect(
-      script.indexOf(r'adb install -r "$main_apk_path"'),
+      script.indexOf(r'install_apk_with_retry "$main_apk_path" production'),
       lessThan(script.indexOf("printf 'Running D:")),
     );
     expect(
@@ -48,6 +48,35 @@ void main() {
       integrationTest,
       isNot(contains('pumpAndSettle()')),
       reason: 'The low-memory 48MP route must use bounded waits.',
+    );
+  });
+
+  test('recovers bounded transient ADB transport failures without weakening AVD', () {
+    final script = File(
+      '.github/scripts/run-low-memory-acceptance.sh',
+    ).readAsStringSync();
+    final workflow = File(
+      '.github/workflows/local-acceptance-scripts.yml',
+    ).readAsStringSync();
+
+    expect(script, contains('install_apk_with_retry'));
+    expect(script, contains('for attempt in 1 2 3'));
+    expect(script, contains('adb reconnect'));
+    expect(script, contains('adb kill-server'));
+    expect(script, contains('adb shell cmd package list packages'));
+    expect(script, contains('capture_adb_failure_diagnostics'));
+    expect(script, contains('failure-${safe_label}-logcat.txt'));
+    expect(
+      script,
+      contains(r'install_apk_with_retry "$integration_apk_path" integration-test'),
+    );
+    expect(workflow, contains('api-level: 35'));
+    expect(workflow, contains('arch: x86_64'));
+    expect(workflow, contains('ram-size: 1536'));
+    expect(workflow, contains('emulator-boot-timeout: 900'));
+    expect(
+      workflow,
+      contains('script: bash .github/scripts/run-low-memory-acceptance.sh'),
     );
   });
 
