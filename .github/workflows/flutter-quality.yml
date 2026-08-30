@@ -10,8 +10,55 @@ permissions:
   contents: read
 
 jobs:
+  android_release_smoke:
+    name: Android release smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Pub get
+        run: flutter pub get
+
+      - name: Constrain hosted-runner Gradle memory
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('android/gradle.properties')
+          text = path.read_text()
+          original = 'org.gradle.jvmargs=-Xmx8G -XX:MaxMetaspaceSize=4G -XX:ReservedCodeCacheSize=512m -XX:+HeapDumpOnOutOfMemoryError'
+          ci_value = 'org.gradle.jvmargs=-Xmx3G -XX:MaxMetaspaceSize=1G -XX:ReservedCodeCacheSize=256m -XX:+HeapDumpOnOutOfMemoryError'
+          if original not in text:
+              raise SystemExit('Expected Gradle JVM defaults were not found; refusing to silently change CI memory semantics')
+          path.write_text(text.replace(original, ci_value, 1) + '\norg.gradle.workers.max=1\norg.gradle.parallel=false\n')
+          PY
+
+      - name: Build release smoke APK
+        shell: bash
+        run: |
+          set -o pipefail
+          env PRIVACY_STAMP_ALLOW_DEBUG_RELEASE_SIGNING=1 flutter build apk --release
+
   quality:
     name: Flutter quality gates
+    needs: android_release_smoke
+    if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -100,37 +147,6 @@ jobs:
           bash -c 'set +e; output=$(cd android && ./gradlew assembleRelease --dry-run 2>&1); status=$?; set -e; if [ "$status" -eq 0 ]; then echo "release task unexpectedly succeeded without a signing key"; exit 1; fi; printf "%s\n" "$output" | grep -q "Release signing key is missing"' \
             2>&1 | tee .ci-logs/android_release_signing_guard.log
 
-      - name: Stop Gradle daemons before release smoke
-        if: always()
-        shell: bash
-        run: |
-          cd android
-          ./gradlew --stop || true
-
-      - name: Android release smoke
-        id: android_release_smoke
-        continue-on-error: true
-        shell: bash
-        run: |
-          set -o pipefail
-          # The project keeps Flutter's generous local Gradle defaults. On a
-          # standard GitHub-hosted runner, a second release daemon after debug
-          # build + signing guard can exceed available memory and terminate the
-          # runner before logs/artifacts are flushed. Constrain only this CI
-          # smoke build; APK contents and signing behavior are unchanged.
-          python3 - <<'PY'
-          from pathlib import Path
-          path = Path('android/gradle.properties')
-          text = path.read_text()
-          original = 'org.gradle.jvmargs=-Xmx8G -XX:MaxMetaspaceSize=4G -XX:ReservedCodeCacheSize=512m -XX:+HeapDumpOnOutOfMemoryError'
-          ci_value = 'org.gradle.jvmargs=-Xmx3G -XX:MaxMetaspaceSize=1G -XX:ReservedCodeCacheSize=256m -XX:+HeapDumpOnOutOfMemoryError'
-          if original not in text:
-              raise SystemExit('Expected Gradle JVM defaults were not found; refusing to silently change CI memory semantics')
-          path.write_text(text.replace(original, ci_value, 1))
-          PY
-          env PRIVACY_STAMP_ALLOW_DEBUG_RELEASE_SIGNING=1 flutter build apk --release \
-            2>&1 | tee .ci-logs/android_release_smoke.log
-
       - name: Summarize quality gates
         if: always()
         shell: bash
@@ -145,7 +161,7 @@ jobs:
           web_build	${{ steps.web_build.outcome }}
           android_debug_build	${{ steps.android_debug_build.outcome }}
           android_release_signing_guard	${{ steps.android_release_signing_guard.outcome }}
-          android_release_smoke	${{ steps.android_release_smoke.outcome }}
+          android_release_smoke	${{ needs.android_release_smoke.result }}
           EOF
 
           warnings=$(grep -Eic '(^|[[:space:]])(warning|info)([[:space:]:]|$)' .ci-logs/analyze.log 2>/dev/null || true)
@@ -175,6 +191,7 @@ jobs:
             echo
             echo "CI execution logs are uploaded as the quality artifact. Build outputs are validated in-place by the named build gates and are not uploaded to keep hosted-runner artifact handling lightweight."
             echo "The release smoke APK explicitly opts into debug signing for CI only; it is not a distributable release."
+            echo "The release smoke runs on a dedicated fresh runner; the Flutter quality gate remains red unless that job succeeds."
             echo
             echo "### Gate results"
             awk -F '\t' '{ icon = ($2 == "success" ? "PASS" : "FAIL"); printf "- `%s`: %s (%s)\n", $1, icon, $2 }' .ci-logs/gates.tsv
@@ -201,7 +218,7 @@ jobs:
                 "${{ steps.web_build.outcome }}" != "success" || \
                 "${{ steps.android_debug_build.outcome }}" != "success" || \
                 "${{ steps.android_release_signing_guard.outcome }}" != "success" || \
-                "${{ steps.android_release_smoke.outcome }}" != "success" ]]; then
+                "${{ needs.android_release_smoke.result }}" != "success" ]]; then
             echo 'One or more quality gates failed. See the named steps and uploaded logs.'
             exit 1
           fi
