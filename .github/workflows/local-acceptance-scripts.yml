@@ -155,6 +155,11 @@ jobs:
           heap-size: 256M
           cores: 2
           force-avd-creation: true
+          # Run 33314277128 reached an online ADB device but API 35 had not set
+          # sys.boot_completed after the action's 600-second cold-boot limit.
+          # This extends infrastructure boot wait only; the acceptance script's
+          # own 12-minute wall-clock and all Issue #17 assertions stay unchanged.
+          emulator-boot-timeout: 900
           emulator-options: -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -memory 1536 -lowram
           script: bash .github/scripts/run-low-memory-acceptance.sh
 
