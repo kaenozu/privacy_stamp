@@ -20,6 +20,117 @@ if [[ -z "$timeout_bin" ]]; then
   exit 30
 fi
 
+capture_adb_failure_diagnostics() {
+  local label="$1"
+  local safe_label="${label//[^A-Za-z0-9_.-]/_}"
+  local prefix=".ci-logs/android/failure-${safe_label}"
+
+  printf 'Capturing ADB failure diagnostics for %s at %s\n' "$label" "$(timestamp)" \
+    | tee -a .ci-logs/android/progress.log
+  "$timeout_bin" --signal=TERM --kill-after=3s 10s adb devices -l \
+    > "${prefix}-adb-devices.txt" 2>&1 || true
+  "$timeout_bin" --signal=TERM --kill-after=3s 10s adb get-state \
+    > "${prefix}-adb-state.txt" 2>&1 || true
+  "$timeout_bin" --signal=TERM --kill-after=3s 10s adb shell getprop \
+    > "${prefix}-getprop.txt" 2>&1 || true
+  "$timeout_bin" --signal=TERM --kill-after=3s 10s adb shell cat /proc/meminfo \
+    > "${prefix}-meminfo.txt" 2>&1 || true
+  "$timeout_bin" --signal=TERM --kill-after=3s 15s adb logcat -d -v threadtime \
+    > "${prefix}-logcat.txt" 2>&1 || true
+}
+
+adb_ready_once() {
+  local state boot_completed
+  "$timeout_bin" --signal=TERM --kill-after=3s 10s adb wait-for-device \
+    >/dev/null 2>&1 || return 1
+  state=$("$timeout_bin" --signal=TERM --kill-after=3s 10s adb get-state 2>/dev/null \
+    | tr -d '\r') || return 1
+  [[ "$state" == "device" ]] || return 1
+  boot_completed=$("$timeout_bin" --signal=TERM --kill-after=3s 10s \
+    adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r') || return 1
+  [[ "$boot_completed" == "1" ]] || return 1
+  "$timeout_bin" --signal=TERM --kill-after=3s 10s \
+    adb shell cmd package list packages >/dev/null 2>&1 || return 1
+}
+
+wait_for_adb_stable() {
+  local attempt
+  for attempt in $(seq 1 10); do
+    if adb_ready_once; then
+      # Require two consecutive healthy probes. ADB can briefly return after a
+      # low-memory package install and then drop the transport again.
+      sleep 2
+      if adb_ready_once; then
+        return 0
+      fi
+    fi
+    sleep 2
+  done
+  return 1
+}
+
+recover_adb_transport() {
+  if wait_for_adb_stable; then
+    return 0
+  fi
+
+  printf 'ADB transport is unstable; requesting reconnect at %s\n' "$(timestamp)" \
+    | tee -a .ci-logs/android/progress.log
+  adb reconnect >/dev/null 2>&1 || true
+  if wait_for_adb_stable; then
+    return 0
+  fi
+
+  # The acceptance runs on a dedicated single-emulator runner. Restarting the
+  # host ADB server is safe before flutter drive starts and recovers broken
+  # local transport sockets without changing guest RAM/API/ABI semantics.
+  printf 'ADB reconnect did not recover; restarting host ADB server at %s\n' "$(timestamp)" \
+    | tee -a .ci-logs/android/progress.log
+  adb kill-server >/dev/null 2>&1 || true
+  adb start-server >/dev/null 2>&1 || true
+  wait_for_adb_stable
+}
+
+install_apk_with_retry() {
+  local apk_path="$1"
+  local label="$2"
+  local install_log="$3"
+  local attempt status
+
+  : > "$install_log"
+  for attempt in 1 2 3; do
+    printf 'Installing %s APK (attempt %s/3) at %s\n' "$label" "$attempt" "$(timestamp)" \
+      | tee -a .ci-logs/android/progress.log
+
+    if ! recover_adb_transport; then
+      printf 'ADB was not stable before %s install attempt %s.\n' "$label" "$attempt" \
+        | tee -a "$install_log"
+      status=1
+    else
+      "$timeout_bin" --signal=TERM --kill-after=5s 60s adb install -r "$apk_path" \
+        >> "$install_log" 2>&1
+      status=$?
+      if (( status == 0 )); then
+        if wait_for_adb_stable; then
+          printf '%s APK installed and ADB remained stable.\n' "$label" \
+            | tee -a .ci-logs/android/progress.log
+          return 0
+        fi
+        printf '%s APK install succeeded but ADB transport became unstable.\n' "$label" \
+          | tee -a "$install_log"
+        status=1
+      fi
+    fi
+
+    printf '%s APK install attempt %s failed with exit %s.\n' "$label" "$attempt" "$status" \
+      | tee -a .ci-logs/android/progress.log
+    capture_adb_failure_diagnostics "${label}-install-attempt-${attempt}"
+    (( attempt < 3 )) && sleep 5
+  done
+
+  return 1
+}
+
 printf 'AVD runner action handed off to test script at %s\n' "$(timestamp)" | tee -a .ci-logs/android/progress.log
 
 actual_sha=$(git rev-parse HEAD 2>/dev/null || echo 'unknown')
@@ -58,13 +169,15 @@ if [[ ! -f "$main_apk_path" ]]; then
   echo "Production debug APK not found at $main_apk_path" | tee "$report"
   exit 46
 fi
-adb install -r "$integration_apk_path" > .ci-logs/android/apk-install-integration.log 2>&1
-if [[ $? -ne 0 ]]; then
-  echo "Failed to install integration-test debug APK." | tee "$report"
+if ! install_apk_with_retry "$integration_apk_path" integration-test \
+  .ci-logs/android/apk-install-integration.log; then
+  echo "Failed to install integration-test debug APK after bounded ADB recovery." | tee "$report"
+  capture_adb_failure_diagnostics integration-install-final
   exit 45
 fi
 if ! adb shell pm list packages 2>/dev/null | grep -q "^package:${package}$"; then
   echo "Expected package ${package} is not installed." | tee "$report"
+  capture_adb_failure_diagnostics package-verification
   exit 43
 fi
 
@@ -172,9 +285,10 @@ fi
 # production debug APK before lifecycle D so force-stop/relaunch exercises the
 # app's real launcher entry point rather than the test harness.
 printf 'Restoring production debug APK before lifecycle D.\n' | tee -a .ci-logs/android/progress.log
-adb install -r "$main_apk_path" > .ci-logs/android/apk-install-main.log 2>&1
-if [[ $? -ne 0 ]]; then
-  echo 'Failed to restore production debug APK before lifecycle D.' | tee "$report"
+if ! install_apk_with_retry "$main_apk_path" production \
+  .ci-logs/android/apk-install-main.log; then
+  echo 'Failed to restore production debug APK before lifecycle D after bounded ADB recovery.' | tee "$report"
+  capture_adb_failure_diagnostics production-restore-final
   exit 47
 fi
 
