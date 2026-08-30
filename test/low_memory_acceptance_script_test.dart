@@ -26,10 +26,7 @@ void main() {
       ),
       reason: 'The reused APK must contain the integration-test entry point.',
     );
-    expect(
-      workflow,
-      contains('app-debug-integration.apk'),
-    );
+    expect(workflow, contains('app-debug-integration.apk'));
     expect(
       workflow,
       contains('app-debug-main.apk'),
@@ -67,6 +64,23 @@ void main() {
     expect(
       script.indexOf("grep -q 'ACCEPTANCE_MILESTONE .* A:start'"),
       lessThan(script.indexOf(r'pid=$(adb shell pidof')),
+    );
+  });
+
+  test('samples PSS without invoking the application dump callback', () {
+    final script = File(
+      '.github/scripts/run-low-memory-acceptance.sh',
+    ).readAsStringSync();
+
+    expect(
+      script,
+      contains(r'adb shell dumpsys meminfo --local "$package"'),
+      reason: 'PSS collection must stay local to system_server.',
+    );
+    expect(
+      script,
+      isNot(contains(r'adb shell dumpsys meminfo "$package"')),
+      reason: 'Regular dumpsys meminfo can force explicit GC in the app.',
     );
   });
 }
