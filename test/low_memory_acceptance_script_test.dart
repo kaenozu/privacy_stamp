@@ -39,7 +39,7 @@ void main() {
     );
     expect(
       script.indexOf("grep -q 'ACCEPTANCE_MILESTONE .* A:start'"),
-      lessThan(script.indexOf('pid=$(adb shell pidof')),
+      lessThan(script.indexOf(r'pid=$(adb shell pidof')),
     );
   });
 }
