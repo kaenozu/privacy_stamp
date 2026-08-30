@@ -34,6 +34,43 @@ preflight() {
   fi
 }
 
+# A low-memory cold boot can briefly return the emulator to offline/broken-pipe
+# after sys.boot_completed is observed. Retry only ADB transport readiness and
+# APK installation; do not relax any acceptance condition or execution timeout.
+ensure_adb_ready() {
+  local attempt
+  for attempt in 1 2 3; do
+    adb start-server >/dev/null 2>&1 || true
+    if "$timeout_bin" 20s adb wait-for-device >/dev/null 2>&1 &&
+      adb shell true >/dev/null 2>&1; then
+      printf 'ADB ready on attempt %s at %s\n' "$attempt" "$(timestamp)" | tee -a .ci-logs/android/progress.log
+      return 0
+    fi
+    printf 'ADB not ready on attempt %s; reconnecting.\n' "$attempt" | tee -a .ci-logs/android/progress.log
+    adb reconnect >/dev/null 2>&1 || true
+    sleep $((attempt * 2))
+  done
+  return 1
+}
+
+install_apk_with_retry() {
+  local apk="$1"
+  local install_log="$2"
+  local attempt
+  : > "$install_log"
+  for attempt in 1 2 3; do
+    printf 'APK install attempt %s for %s at %s\n' "$attempt" "$apk" "$(timestamp)" | tee -a "$install_log" .ci-logs/android/progress.log
+    if ensure_adb_ready && adb install -r "$apk" >> "$install_log" 2>&1; then
+      printf 'APK install succeeded on attempt %s.\n' "$attempt" | tee -a "$install_log" .ci-logs/android/progress.log
+      return 0
+    fi
+    printf 'APK install attempt %s failed; reconnecting before retry.\n' "$attempt" | tee -a "$install_log" .ci-logs/android/progress.log
+    adb reconnect >> "$install_log" 2>&1 || true
+    sleep $((attempt * 2))
+  done
+  return 1
+}
+
 preflight adb-devices adb devices -l
 preflight getprop adb shell getprop
 preflight meminfo adb shell cat /proc/meminfo
@@ -58,10 +95,13 @@ if [[ ! -f "$main_apk_path" ]]; then
   echo "Production debug APK not found at $main_apk_path" | tee "$report"
   exit 46
 fi
-adb install -r "$integration_apk_path" > .ci-logs/android/apk-install-integration.log 2>&1
-if [[ $? -ne 0 ]]; then
-  echo "Failed to install integration-test debug APK." | tee "$report"
+if ! install_apk_with_retry "$integration_apk_path" .ci-logs/android/apk-install-integration.log; then
+  echo "Failed to install integration-test debug APK after bounded ADB recovery." | tee "$report"
   exit 45
+fi
+if ! ensure_adb_ready; then
+  echo 'ADB became unavailable after integration APK install.' | tee "$report"
+  exit 48
 fi
 if ! adb shell pm list packages 2>/dev/null | grep -q "^package:${package}$"; then
   echo "Expected package ${package} is not installed." | tee "$report"
@@ -172,9 +212,8 @@ fi
 # production debug APK before lifecycle D so force-stop/relaunch exercises the
 # app's real launcher entry point rather than the test harness.
 printf 'Restoring production debug APK before lifecycle D.\n' | tee -a .ci-logs/android/progress.log
-adb install -r "$main_apk_path" > .ci-logs/android/apk-install-main.log 2>&1
-if [[ $? -ne 0 ]]; then
-  echo 'Failed to restore production debug APK before lifecycle D.' | tee "$report"
+if ! install_apk_with_retry "$main_apk_path" .ci-logs/android/apk-install-main.log; then
+  echo 'Failed to restore production debug APK before lifecycle D after bounded ADB recovery.' | tee "$report"
   exit 47
 fi
 
