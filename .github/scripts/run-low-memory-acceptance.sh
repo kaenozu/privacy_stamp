@@ -79,6 +79,14 @@ printf 'Guest MemTotal: %s kB\n' "$mem_total_kb" | tee -a .ci-logs/android/progr
 adb logcat -c || true
 
 sample_memory() {
+  # Do not issue competing ADB shell commands while flutter drive is attaching
+  # to the VM service. The first integration-test milestone is emitted only
+  # after the driver is connected, and it occurs before the 48MP workload.
+  while ! grep -q 'ACCEPTANCE_MILESTONE .* A:start' "$log" 2>/dev/null; do
+    sleep 1
+  done
+  printf 'Memory sampling started after A:start at %s\n' "$(timestamp)" | tee -a .ci-logs/android/progress.log
+
   while true; do
     now=$(timestamp)
     pid=$(adb shell pidof "$package" 2>/dev/null | tr -d '\r' | awk '{print $1}')
