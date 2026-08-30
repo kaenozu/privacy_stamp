@@ -1,0 +1,31 @@
+name: PR 44 formatter probe exact
+
+on:
+  push:
+    branches:
+      - fix/17-emulator-ram-checkout
+
+permissions:
+  contents: read
+
+jobs:
+  format-diff:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.2'
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - name: Print exact formatting-only diff
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp test/low_memory_acceptance_script_test.dart /tmp/low_memory_acceptance_script_test.before.dart
+          dart --version
+          dart format test/low_memory_acceptance_script_test.dart
+          diff -u /tmp/low_memory_acceptance_script_test.before.dart test/low_memory_acceptance_script_test.dart || true
