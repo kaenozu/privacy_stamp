@@ -100,12 +100,34 @@ jobs:
           bash -c 'set +e; output=$(cd android && ./gradlew assembleRelease --dry-run 2>&1); status=$?; set -e; if [ "$status" -eq 0 ]; then echo "release task unexpectedly succeeded without a signing key"; exit 1; fi; printf "%s\n" "$output" | grep -q "Release signing key is missing"' \
             2>&1 | tee .ci-logs/android_release_signing_guard.log
 
+      - name: Stop Gradle daemons before release smoke
+        if: always()
+        shell: bash
+        run: |
+          cd android
+          ./gradlew --stop || true
+
       - name: Android release smoke
         id: android_release_smoke
         continue-on-error: true
         shell: bash
         run: |
           set -o pipefail
+          # The project keeps Flutter's generous local Gradle defaults. On a
+          # standard GitHub-hosted runner, a second release daemon after debug
+          # build + signing guard can exceed available memory and terminate the
+          # runner before logs/artifacts are flushed. Constrain only this CI
+          # smoke build; APK contents and signing behavior are unchanged.
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('android/gradle.properties')
+          text = path.read_text()
+          original = 'org.gradle.jvmargs=-Xmx8G -XX:MaxMetaspaceSize=4G -XX:ReservedCodeCacheSize=512m -XX:+HeapDumpOnOutOfMemoryError'
+          ci_value = 'org.gradle.jvmargs=-Xmx3G -XX:MaxMetaspaceSize=1G -XX:ReservedCodeCacheSize=256m -XX:+HeapDumpOnOutOfMemoryError'
+          if original not in text:
+              raise SystemExit('Expected Gradle JVM defaults were not found; refusing to silently change CI memory semantics')
+          path.write_text(text.replace(original, ci_value, 1))
+          PY
           env PRIVACY_STAMP_ALLOW_DEBUG_RELEASE_SIGNING=1 flutter build apk --release \
             2>&1 | tee .ci-logs/android_release_smoke.log
 
