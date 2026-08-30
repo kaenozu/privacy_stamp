@@ -65,7 +65,7 @@ void main() {
     expect(script, contains('adb kill-server'));
     expect(script, contains('adb shell cmd package list packages'));
     expect(script, contains('capture_adb_failure_diagnostics'));
-    expect(script, contains('failure-${safe_label}-logcat.txt'));
+    expect(script, contains(r'"${prefix}-logcat.txt"'));
     expect(
       script,
       contains(r'install_apk_with_retry "$integration_apk_path" integration-test'),
