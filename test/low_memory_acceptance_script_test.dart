@@ -57,6 +57,9 @@ void main() {
       final script = File(
         '.github/scripts/run-low-memory-acceptance.sh',
       ).readAsStringSync();
+      final ciWrapper = File(
+        '.github/scripts/run-low-memory-acceptance-ci.sh',
+      ).readAsStringSync();
       final workflow = File(
         '.github/workflows/local-acceptance-scripts.yml',
       ).readAsStringSync();
@@ -74,13 +77,39 @@ void main() {
           r'install_apk_with_retry "$integration_apk_path" integration-test',
         ),
       );
+      expect(
+        ciWrapper,
+        contains('sleep 90'),
+        reason: 'API 35 post-boot services must settle before package install.',
+      );
+      expect(
+        ciWrapper,
+        contains(r'install --no-streaming "$@"'),
+        reason: 'Low-memory APK installation must avoid streaming pressure.',
+      );
+      expect(
+        ciWrapper,
+        contains('args[\$i]="180s"'),
+        reason: 'Only the APK-install transport timeout may be extended.',
+      );
+      expect(
+        ciWrapper,
+        contains('exec bash .github/scripts/run-low-memory-acceptance.sh'),
+      );
       expect(workflow, contains('api-level: 35'));
       expect(workflow, contains('arch: x86_64'));
       expect(workflow, contains('ram-size: 1536'));
       expect(workflow, contains('emulator-boot-timeout: 900'));
       expect(
         workflow,
-        contains('script: bash .github/scripts/run-low-memory-acceptance.sh'),
+        contains(
+          'script: bash .github/scripts/run-low-memory-acceptance-ci.sh',
+        ),
+      );
+      expect(
+        script,
+        contains('12m'),
+        reason: 'The A-C acceptance wall clock must remain 12 minutes.',
       );
     },
   );
