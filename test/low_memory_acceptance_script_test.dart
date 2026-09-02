@@ -114,6 +114,17 @@ void main() {
     },
   );
 
+  test('disables DDS for flutter drive on the low-memory Android emulator', () {
+    final ciWrapper = File(
+      '.github/scripts/run-low-memory-acceptance-ci.sh',
+    ).readAsStringSync();
+
+    expect(ciWrapper, contains(r'real_flutter="$(command -v flutter)"'));
+    expect(ciWrapper, contains(r'if [[ "${1:-}" == "drive" ]]'));
+    expect(ciWrapper, contains(r'exec "$REAL_FLUTTER" "$@" --no-dds'));
+    expect(ciWrapper, contains(r'export REAL_FLUTTER="$real_flutter"'));
+  });
+
   test('does not contend with flutter drive while VM service starts', () {
     final script = File(
       '.github/scripts/run-low-memory-acceptance.sh',
