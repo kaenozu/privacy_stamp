@@ -4,11 +4,15 @@ set -euo pipefail
 # CI-only transport shim for the 1536 MiB API 35 AVD.
 # The acceptance assertions and the 12-minute A-C wall clock remain in
 # run-low-memory-acceptance.sh unchanged. This wrapper only gives Android's
-# post-boot services time to settle and makes APK installation less stressful
-# on the low-memory guest.
+# post-boot services time to settle, makes APK installation less stressful on
+# the low-memory guest, and disables DDS for flutter drive on the emulator.
+# Flutter's integration-test guidance recommends --no-dds for mobile devices
+# and emulators; keeping the driver connected directly to the VM service also
+# avoids the startup boundary that previously stalled before A:start.
 
 real_adb="$(command -v adb)"
 real_timeout="$(command -v gtimeout || command -v timeout)"
+real_flutter="$(command -v flutter)"
 shim_dir="$PWD/.ci-low-memory-bin"
 mkdir -p "$shim_dir"
 
@@ -46,9 +50,27 @@ done
 exec "$REAL_TIMEOUT" "${args[@]}"
 EOF
 
-chmod +x "$shim_dir/adb" "$shim_dir/timeout"
+cat > "$shim_dir/flutter" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+: "${REAL_FLUTTER:?REAL_FLUTTER is required}"
+
+if [[ "${1:-}" == "drive" ]]; then
+  for arg in "$@"; do
+    if [[ "$arg" == "--no-dds" ]]; then
+      exec "$REAL_FLUTTER" "$@"
+    fi
+  done
+  exec "$REAL_FLUTTER" "$@" --no-dds
+fi
+
+exec "$REAL_FLUTTER" "$@"
+EOF
+
+chmod +x "$shim_dir/adb" "$shim_dir/timeout" "$shim_dir/flutter"
 export REAL_ADB="$real_adb"
 export REAL_TIMEOUT="$real_timeout"
+export REAL_FLUTTER="$real_flutter"
 export PATH="$shim_dir:$PATH"
 
 printf 'Low-memory AVD boot completed; allowing post-boot services to settle for 90 seconds.\n'
