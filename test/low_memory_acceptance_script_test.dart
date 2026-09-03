@@ -98,7 +98,12 @@ void main() {
       );
       expect(workflow, contains('api-level: 35'));
       expect(workflow, contains('arch: x86_64'));
-      expect(workflow, contains('ram-size: 1536'));
+      expect(
+        workflow,
+        contains('ram-size: 2048'),
+        reason: 'Issue #17 permits a 1-2 GiB guest; use the 2 GiB upper bound.',
+      );
+      expect(workflow, contains('-memory 2048 -lowram'));
       expect(workflow, contains('emulator-boot-timeout: 900'));
       expect(
         workflow,
