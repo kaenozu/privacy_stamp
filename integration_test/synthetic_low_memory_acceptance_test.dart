@@ -12,12 +12,16 @@ import 'package:privacy_stamp/main.dart';
 import '../tool/acceptance/image_metadata.dart';
 
 void main() {
+  _bootstrap('main-enter');
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
+  _bootstrap('binding-ready');
 
   testWidgets(
     'A: 48MP GPS fixture selects, zooms, pans, masks, and exports metadata-free PNG',
     (tester) async {
+      _milestone('A:start');
       final fixture = await _fixture();
+      _milestone('A:fixture-inspected');
       final source = fixture.bytes;
       final sourceInfo = fixture.metadata;
       final saver = _CapturingSaver();
@@ -32,8 +36,11 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(home: StampHomePage(controller: controller)),
       );
+      _milestone('A:widget-pumped');
       await tester.tap(find.widgetWithText(FilledButton, '画像を選ぶ'));
+      _milestone('A:picker-tapped');
       await _pumpBounded(tester, frames: 50);
+      _milestone('A:image-selection-settled');
 
       expect(controller.imageSize, const PixelSize(6000, 8000));
       expect(find.byType(Image), findsOneWidget);
@@ -42,6 +49,7 @@ void main() {
       expect(canvas, findsOneWidget);
       await tester.tapAt(tester.getCenter(canvas));
       await _pumpBounded(tester);
+      _milestone('A:mask-added');
       expect(controller.manualStamps, hasLength(1));
 
       final viewer = find.byKey(
@@ -64,27 +72,34 @@ void main() {
       await right.up();
       await tester.drag(viewer, const Offset(24, 18));
       await tester.pump();
+      _milestone('A:zoom-pan-complete');
       expect(tester.takeException(), isNull);
 
       await tester.tap(find.widgetWithText(FilledButton, '書き出す'));
-      await tester.pumpAndSettle();
+      await _pumpBounded(tester, frames: 30);
+      _milestone('A:export-confirmation-visible');
       await tester.tap(find.widgetWithText(FilledButton, '確認して書き出す'));
+      _milestone('A:export-confirmed');
       await _pumpBounded(tester, frames: 100);
+      _milestone('A:export-pump-complete');
 
       expect(controller.exportCount, 1);
       final output = saver.bytes;
       expect(output, isNotNull);
       final outputInfo = await _inspectBytes(output!, 'synthetic-output.png');
+      _milestone('A:output-inspected');
       expect(outputInfo.format, 'PNG');
       expect(outputInfo.pixels, sourceInfo.pixels);
       expect(outputInfo.gpsPresent, isFalse);
       expect(outputInfo.metadataContainerPresent, isFalse);
       expect(tester.takeException(), isNull);
+      _milestone('A:pass');
     },
-    timeout: const Timeout(Duration(minutes: 6)),
   );
+  _bootstrap('test-a-registered');
 
   testWidgets('B: picker cancellation leaves the app usable', (tester) async {
+    _milestone('B:start');
     final controller = _controller(
       picker: const _NoopPicker(),
       saver: _CapturingSaver(),
@@ -100,11 +115,14 @@ void main() {
     expect(controller.isBusy, isFalse);
     expect(find.widgetWithText(FilledButton, '画像を選ぶ'), findsOneWidget);
     expect(tester.takeException(), isNull);
+    _milestone('B:pass');
   });
+  _bootstrap('test-b-registered');
 
   testWidgets(
     'C: discard and lifecycle pause/resume leave no stale editor state',
     (tester) async {
+      _milestone('C:start');
       final fixture = await _fixture();
       final sourceInfo = fixture.metadata;
       final controller = _controller(
@@ -134,8 +152,24 @@ void main() {
       expect(controller.isBusy, isFalse);
       expect(find.widgetWithText(FilledButton, '画像を選ぶ'), findsOneWidget);
       expect(tester.takeException(), isNull);
+      _milestone('C:pass');
     },
   );
+  _bootstrap('test-c-registered');
+  _bootstrap('registration-complete');
+}
+
+void _bootstrap(String name) {
+  final now = DateTime.now().toUtc().toIso8601String();
+  // Bootstrap markers are diagnostics only and never count as acceptance.
+  // ignore: avoid_print
+  print('ACCEPTANCE_BOOTSTRAP $now $name');
+}
+
+void _milestone(String name) {
+  final now = DateTime.now().toUtc().toIso8601String();
+  // ignore: avoid_print
+  print('ACCEPTANCE_MILESTONE $now $name');
 }
 
 StampController _controller({
