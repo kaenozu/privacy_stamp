@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# CI-only transport shim for the 1536 MiB API 35 AVD.
+# CI-only transport shim for the 2 GiB API 35 AVD.
 # The acceptance assertions and the 12-minute A-C wall clock remain in
 # run-low-memory-acceptance.sh unchanged. This wrapper only gives Android's
 # post-boot services time to settle, makes APK installation less stressful on
-# the low-memory guest, and disables DDS for flutter drive on the emulator.
+# the low-memory guest, disables DDS for flutter drive on the emulator, and
+# captures logcat before the integration test reaches A:start so bootstrap
+# failures remain diagnosable.
 # Flutter's integration-test guidance recommends --no-dds for mobile devices
 # and emulators; keeping the driver connected directly to the VM service also
 # avoids the startup boundary that previously stalled before A:start.
@@ -76,4 +78,21 @@ export PATH="$shim_dir:$PATH"
 printf 'Low-memory AVD boot completed; allowing post-boot services to settle for 90 seconds.\n'
 sleep 90
 
-exec bash .github/scripts/run-low-memory-acceptance.sh
+mkdir -p .ci-logs/android
+bootstrap_logcat=.ci-logs/android/bootstrap-logcat.txt
+: > "$bootstrap_logcat"
+"$real_adb" logcat -v threadtime > "$bootstrap_logcat" 2>&1 &
+bootstrap_logcat_pid=$!
+cleanup_bootstrap_logcat() {
+  kill "$bootstrap_logcat_pid" 2>/dev/null || true
+  wait "$bootstrap_logcat_pid" 2>/dev/null || true
+}
+trap cleanup_bootstrap_logcat EXIT
+
+set +e
+bash .github/scripts/run-low-memory-acceptance.sh
+status=$?
+set -e
+cleanup_bootstrap_logcat
+trap - EXIT
+exit "$status"
