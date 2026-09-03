@@ -12,7 +12,9 @@ import 'package:privacy_stamp/main.dart';
 import '../tool/acceptance/image_metadata.dart';
 
 void main() {
+  _bootstrap('main-enter');
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
+  _bootstrap('binding-ready');
 
   testWidgets(
     'A: 48MP GPS fixture selects, zooms, pans, masks, and exports metadata-free PNG',
@@ -94,6 +96,7 @@ void main() {
       _milestone('A:pass');
     },
   );
+  _bootstrap('test-a-registered');
 
   testWidgets('B: picker cancellation leaves the app usable', (tester) async {
     _milestone('B:start');
@@ -114,6 +117,7 @@ void main() {
     expect(tester.takeException(), isNull);
     _milestone('B:pass');
   });
+  _bootstrap('test-b-registered');
 
   testWidgets(
     'C: discard and lifecycle pause/resume leave no stale editor state',
@@ -151,6 +155,15 @@ void main() {
       _milestone('C:pass');
     },
   );
+  _bootstrap('test-c-registered');
+  _bootstrap('registration-complete');
+}
+
+void _bootstrap(String name) {
+  final now = DateTime.now().toUtc().toIso8601String();
+  // Bootstrap markers are diagnostics only and never count as acceptance.
+  // ignore: avoid_print
+  print('ACCEPTANCE_BOOTSTRAP $now $name');
 }
 
 void _milestone(String name) {
