@@ -95,4 +95,9 @@ status=$?
 set -e
 cleanup_bootstrap_logcat
 trap - EXIT
+
+printf 'Integration bootstrap markers captured from Android logcat:\n'
+grep -E 'ACCEPTANCE_(BOOTSTRAP|MILESTONE)' "$bootstrap_logcat" || \
+  printf 'No ACCEPTANCE_BOOTSTRAP/ACCEPTANCE_MILESTONE markers were present in Android logcat.\n'
+
 exit "$status"
