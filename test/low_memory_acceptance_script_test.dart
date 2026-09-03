@@ -94,8 +94,19 @@ void main() {
       );
       expect(
         ciWrapper,
-        contains('exec bash .github/scripts/run-low-memory-acceptance.sh'),
+        contains('bash .github/scripts/run-low-memory-acceptance.sh'),
       );
+      expect(
+        ciWrapper,
+        contains(r'bootstrap_logcat=.ci-logs/android/bootstrap-logcat.txt'),
+        reason: 'Driver/bootstrap failures before A:start must retain logcat.',
+      );
+      expect(
+        ciWrapper,
+        contains(r'"$real_adb" logcat -v threadtime > "$bootstrap_logcat" 2>&1 &'),
+      );
+      expect(ciWrapper, contains('status=\$?'));
+      expect(ciWrapper, contains('exit "\$status"'));
       expect(workflow, contains('api-level: 35'));
       expect(workflow, contains('arch: x86_64'));
       expect(
