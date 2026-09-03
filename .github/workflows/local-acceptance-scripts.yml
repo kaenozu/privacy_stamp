@@ -151,11 +151,12 @@ jobs:
           target: google_apis
           arch: x86_64
           profile: pixel_2
-          # Acceptance requires an actual 1-2 GiB guest. API 34+ phone AVDs
-          # otherwise enforce a 2560MB emulator minimum; -lowram explicitly
-          # removes that lower bound while the script still verifies MemTotal.
+          # Issue #17 permits a 1-2 GiB guest. The 1536MB run entered severe
+          # system-wide pressure before A:start and lmkd killed unrelated system
+          # processes, so use the permitted 2 GiB upper bound while keeping the
+          # same API 35 Google APIs image, 48MP fixture, and all app assertions.
           disk-size: 2048M
-          ram-size: 1536
+          ram-size: 2048
           heap-size: 256M
           cores: 2
           force-avd-creation: true
@@ -164,7 +165,7 @@ jobs:
           # This extends infrastructure boot wait only; the acceptance script's
           # own 12-minute wall-clock and all Issue #17 assertions stay unchanged.
           emulator-boot-timeout: 900
-          emulator-options: -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -memory 1536 -lowram
+          emulator-options: -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -memory 2048 -lowram
           script: bash .github/scripts/run-low-memory-acceptance-ci.sh
 
       - name: Collect Android diagnostics
