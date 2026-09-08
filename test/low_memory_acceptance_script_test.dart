@@ -103,7 +103,9 @@ void main() {
       );
       expect(
         ciWrapper,
-        contains(r'"$real_adb" logcat -v threadtime > "$bootstrap_logcat" 2>&1 &'),
+        contains(
+          r'"$real_adb" logcat -v threadtime > "$bootstrap_logcat" 2>&1 &',
+        ),
       );
       expect(ciWrapper, contains('status=\$?'));
       expect(ciWrapper, contains('exit "\$status"'));

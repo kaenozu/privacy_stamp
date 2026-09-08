@@ -152,7 +152,7 @@ jobs:
         shell: bash
         run: |
           set -u
-          cat > .ci-logs/gates.tsv <<'EOF'
+          cat > .ci-logs/gates.tsv <<EOF
           tool_versions	${{ steps.tool_versions.outcome }}
           pub_get	${{ steps.pub_get.outcome }}
           format	${{ steps.format.outcome }}
