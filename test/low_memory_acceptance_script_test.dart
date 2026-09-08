@@ -46,6 +46,18 @@ void main() {
     ).readAsStringSync();
     expect(
       integrationTest,
+      contains("package:flutter_driver/driver_extension.dart"),
+      reason:
+          'flutter drive requires the driver extension in the test entry point.',
+    );
+    expect(
+      integrationTest,
+      contains('enableFlutterDriverExtension();'),
+      reason:
+          'The driver extension must be enabled before integration bootstrap.',
+    );
+    expect(
+      integrationTest,
       isNot(contains('pumpAndSettle()')),
       reason: 'The low-memory 48MP route must use bounded waits.',
     );
