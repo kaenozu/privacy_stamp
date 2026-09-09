@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../detection/detector_service.dart';
 import '../detection/face_detector.dart';
+import '../detection/text_detector.dart';
 import '../export/redaction_exporter.dart';
 import '../models/redaction_models.dart';
 
@@ -159,7 +160,10 @@ class StampController extends ChangeNotifier {
   factory StampController.defaults() => StampController(
     picker: const FilePickerImageGateway(),
     detector: DetectionServiceGateway(
-      detector: DetectionService(faceDetector: MlKitFaceDetector()),
+      detector: DetectionService(
+        faceDetector: MlKitFaceDetector(),
+        textDetector: MlKitTextDetector(),
+      ),
     ),
     exporter: const RedactionExporter().encodeAsync,
     saver: FilePickerImageSaver(),

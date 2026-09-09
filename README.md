@@ -6,22 +6,21 @@ Privacy Stamp は、画像内の機微な領域を手動でマスクし、共有
 
 1. JPEG / PNG / WebP を1枚選択
 2. 画像をローカルpreview
-3. 顔の候補を自動でマスク（Android実機、オンデバイスML Kit）
+3. 顔・文字の候補を自動でマスク（Android実機、オンデバイスML Kit）
 4. 不透明な矩形maskを追加
 4. maskを移動・resize・削除
 5. 元画像を上書きせず、別PNGとしてexport
 
-export時はorientationを焼き込み、metadata除去を検証します。顔検出は縮小した向き補正済みコピーに対して行い、結果を正規化座標で元画像へ戻します。
+export時はorientationを焼き込み、metadata除去を検証します。顔・文字検出は縮小した向き補正済みコピーに対して行い、結果を正規化座標で元画像へ戻します。
 
 ## 現在できないこと
 
-自動検出のうちOCR text・barcodeはdomain modelやrule engineは存在しますが、実platform detectorが未完成です。
+自動検出のうちbarcodeはdomain modelやrule engineは存在しますが、実platform detectorが未完成です。
 
-- OCR text自動検出
 - barcode自動検出
 - 自動maskだけに依存した安全保証
 
-顔の自動検出はAndroid実機で動作しますが、目安であり漏れがあります。**現時点では手動レビューが必須**です。
+顔・文字の自動検出はAndroid実機で動作しますが、目安であり漏れがあります。**現時点では手動レビューが必須**です。
 
 ## Privacy boundary
 

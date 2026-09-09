@@ -1,16 +1,20 @@
 import '../models/redaction_models.dart';
 import '../rules/sensitive_rules.dart';
 import 'face_detector.dart';
+import 'text_detector.dart';
 
 class DetectionService {
   DetectionService({
     SensitiveRuleEngine? rules,
     FaceRegionDetector? faceDetector,
+    TextRegionDetector? textDetector,
     this._codeDetector,
   }) : _rules = rules ?? SensitiveRuleEngine(),
-       _faceDetector = faceDetector ?? const NoopFaceDetector();
+       _faceDetector = faceDetector ?? const NoopFaceDetector(),
+       _textDetector = textDetector ?? const NoopTextDetector();
   final SensitiveRuleEngine _rules;
   final FaceRegionDetector _faceDetector;
+  final TextRegionDetector _textDetector;
   final CodeRegionDetector? _codeDetector;
 
   Future<List<DetectionRegion>> inspect(
@@ -21,7 +25,12 @@ class DetectionService {
     // The shared rule engine remains deterministic and never sends image bytes away.
     // Each source is isolated: a failing detector degrades to "no suggestions"
     // instead of discarding the other sources or the selected image.
-    final textRegions = await _localTextDetector(input);
+    List<RecognizedTextRegion> textRegions = const [];
+    try {
+      textRegions = await _textDetector.detect(input);
+    } catch (_) {
+      textRegions = const [];
+    }
     final textHits = _rules.detect(textRegions, hideAllText: hideAllText);
 
     List<DetectionRegion> faces = const [];
@@ -43,8 +52,4 @@ class DetectionService {
 
     return [...faces, ...codes, ...textHits];
   }
-
-  Future<List<RecognizedTextRegion>> _localTextDetector(
-    Uint8ListImageInput input,
-  ) async => const [];
 }

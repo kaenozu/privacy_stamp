@@ -322,7 +322,7 @@ class _EditorState extends State<_Editor> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const Text(
-            '顔の候補は自動で追加されます（目安）。OCR・バーコードは未実装です。漏れがあるため、必ず目視で確認してください。',
+            '顔・文字の候補は自動で追加されます（目安）。バーコードは未実装です。漏れがあるため、必ず目視で確認してください。',
             semanticsLabel: '顔の候補は自動で追加されます。必ず目視で確認してください。',
           ),
           if (widget.automaticCount > 0)
