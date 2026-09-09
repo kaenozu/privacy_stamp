@@ -11,9 +11,11 @@
 -keep class com.google.android.gms.internal.mlkit_vision** { *; }
 -keep class com.google_mlkit_face_detection.** { *; }
 -keep class com.google_mlkit_text_recognition.** { *; }
+-keep class com.google_mlkit_barcode_scanning.** { *; }
 -keep class com.google_mlkit_commons.** { *; }
 -dontwarn com.google.mlkit.**
 -dontwarn com.google.android.gms.internal.mlkit_vision**
 -dontwarn com.google_mlkit_face_detection.**
 -dontwarn com.google_mlkit_text_recognition.**
+-dontwarn com.google_mlkit_barcode_scanning.**
 -dontwarn com.google_mlkit_commons.**

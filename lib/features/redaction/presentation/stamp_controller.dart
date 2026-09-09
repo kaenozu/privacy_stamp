@@ -5,6 +5,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../detection/barcode_detector.dart';
 import '../detection/detector_service.dart';
 import '../detection/face_detector.dart';
 import '../detection/text_detector.dart';
@@ -163,6 +164,7 @@ class StampController extends ChangeNotifier {
       detector: DetectionService(
         faceDetector: MlKitFaceDetector(),
         textDetector: MlKitTextDetector(),
+        codeDetector: MlKitBarcodeDetector(),
       ),
     ),
     exporter: const RedactionExporter().encodeAsync,

@@ -76,6 +76,12 @@ back-mapping, fail-open `[]`). The same Play Services model-download and
 `kIsWeb` zero-candidate caveats as face apply; text remains a hint and the
 mandatory manual-review dialog stays.
 
+`MlKitBarcodeDetector` runs Google ML Kit barcode scanning on-device (all
+formats, 2048px downscaled oriented NV21 copy, normalized back-mapping with
+quiet-zone padding, fail-open `[]`). Every decoded value is masked because
+QR/DataMatrix routinely carry URLs and identifiers; detection remains a hint
+and manual review stays mandatory.
+
 `MlKitFaceDetector` runs Google ML Kit face detection on-device (Android/iOS
 via the bundled `com.google.mlkit:face-detection` model; inference sends no
 image bytes anywhere: the adapter builds an NV21 `InputImage` from a
