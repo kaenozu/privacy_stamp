@@ -134,6 +134,8 @@ The code is release-ready when:
 - [x] Application ID is final: `com.privacy_stamp`
 - [x] App label is final: "Privacy Stamp"
 - [x] Release signing is wired (key.properties-based, git-ignored, fail-closed)
+- [x] `android/app/proguard-rules.pro` keeps ML Kit whole (release R8 breaks
+  face detection without it; the file is picked up automatically)
 - [x] CI gates (format / analyze / test / web / android) are green
 - [x] Release runbook exists (this document)
 - [ ] Upload key generated and stored safely on a release machine

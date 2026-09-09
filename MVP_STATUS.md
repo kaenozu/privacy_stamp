@@ -8,6 +8,9 @@ This document records the repository state, not a production readiness claim.
   `file_picker` selection flow.
 - In-memory image bytes passed through a shared normalized rectangle, detection,
   OCR-region, and stamp contract.
+- On-device ML Kit face detection on native platforms (fast mode, downscaled
+  oriented copy, normalized back-mapping, padded boxes), merged with rule-engine
+  hits and exported as automatic stamps with a one-tap clear control.
 - Pure Dart rules for email, Japanese/international phone, postal-code review
   candidates, Luhn-valid card candidates, coordinates, labelled values, and an
   all-OCR-region contract for future detector adapters.
@@ -22,11 +25,10 @@ This document records the repository state, not a production readiness claim.
 
 ## Not implemented
 
-- Android ML Kit face, OCR, and barcode adapters.
-- Web MediaPipe, Tesseract.js, and ZXing local bundled adapters.
-- Automatic detector execution: `DetectionService._localTextDetector` currently
-  returns no recognized text regions, and the UI explicitly says automatic
-  detection is not implemented.
+- Android ML Kit OCR and barcode adapters, Web MediaPipe face/OCR adapters,
+  Tesseract.js, and ZXing local bundled adapters.
+- Automatic OCR/barcode execution: `DetectionService._localTextDetector`
+  currently returns no recognized text regions.
 - Automatic face/barcode/OCR coverage, or a
   guarantee that all sensitive content is hidden.
 - Android share-intent receiver and system share-out.

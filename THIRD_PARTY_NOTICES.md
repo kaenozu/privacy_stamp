@@ -12,6 +12,7 @@ the applicable notices and full license texts for that complete graph.
 | file_picker | MIT |
 | image | MIT |
 | shared_preferences | BSD-3-Clause |
+| google_mlkit_face_detection (+ google_mlkit_commons) | Apache-2.0 |
 
 ## Direct development dependencies
 

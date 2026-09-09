@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../detection/detector_service.dart';
+import '../detection/face_detector.dart';
 import '../export/redaction_exporter.dart';
 import '../models/redaction_models.dart';
 
@@ -45,6 +46,21 @@ class ImagePickException implements Exception {
   const ImagePickException(this.failure);
 
   final PickImageFailure failure;
+}
+
+/// Strips directories, traversal sequences, and unsafe characters from the
+/// original picker name so the export dialog cannot escape its target.
+/// `source.png` -> `source.png`, `../secret` -> `secret`, empty -> `image`.
+String sanitizeExportBasename(String? rawName) {
+  if (rawName == null || rawName.trim().isEmpty) return 'image';
+  var base = rawName.trim().replaceAll('\\', '/');
+  base = base.split('/').last;
+  base = base.replaceAll(RegExp(r'[^A-Za-z0-9._-]+'), '_');
+  base = base.replaceAll(RegExp(r'_+'), '_');
+  base = base.replaceAll(RegExp(r'^[.]+'), '');
+  if (base.isEmpty || base == '.' || base == '..') return 'image';
+  if (base.length > 80) base = base.substring(0, 80);
+  return base;
 }
 
 class PickedImage {
@@ -142,7 +158,9 @@ class StampController extends ChangeNotifier {
 
   factory StampController.defaults() => StampController(
     picker: const FilePickerImageGateway(),
-    detector: DetectionServiceGateway(),
+    detector: DetectionServiceGateway(
+      detector: DetectionService(faceDetector: MlKitFaceDetector()),
+    ),
     exporter: const RedactionExporter().encodeAsync,
     saver: FilePickerImageSaver(),
     history: SharedPreferencesExportHistory(),
@@ -156,6 +174,7 @@ class StampController extends ChangeNotifier {
     history: SharedPreferencesExportHistory(),
   );
 
+  @visibleForTesting
   void loadImageForTesting(Uint8List bytes, String name, PixelSize imageSize) {
     if (_disposed) return;
     _bytes = bytes;
@@ -186,6 +205,7 @@ class StampController extends ChangeNotifier {
   bool _disposed = false;
   int _generation = 0;
   int _exportCount = 0;
+  int _manualIdSeq = 0;
 
   Uint8List? get bytes => _bytes;
   String? get fileName => _fileName;
@@ -196,6 +216,8 @@ class StampController extends ChangeNotifier {
   int get exportCount => _exportCount;
   PickImageFailure? get pickFailure => _pickFailure;
   List<DetectionRegion> get detections => List.unmodifiable(_detections);
+  int get automaticCount =>
+      _detections.where((detection) => detection.isEnabled).length;
   List<Stamp> get manualStamps => List.unmodifiable(_manualStamps);
   List<Stamp> get stamps => [
     for (final detection in _detections)
@@ -297,18 +319,15 @@ class StampController extends ChangeNotifier {
       height,
     ).clamp();
     _rememberManualState();
-    _manualStamps = [
-      ..._manualStamps,
-      Stamp(id: 'manual-${DateTime.now().microsecondsSinceEpoch}', rect: rect),
-    ];
+    _manualStamps = [..._manualStamps, Stamp(id: _nextManualId(), rect: rect)];
     notifyListeners();
   }
 
   void moveManualStamp(String id, Offset delta) {
     if (_disposed || _busy) return;
-    final stamp = _findManualStamp(id);
-    if (stamp == null) return;
-    final rect = stamp.rect;
+    final index = _manualIndexOf(id);
+    if (index < 0) return;
+    final rect = _manualStamps[index].rect;
     final next = NormalizedRect(
       (rect.left + delta.dx).clamp(0.0, 1.0 - rect.width).toDouble(),
       (rect.top + delta.dy).clamp(0.0, 1.0 - rect.height).toDouble(),
@@ -317,15 +336,21 @@ class StampController extends ChangeNotifier {
     );
     if (next == rect) return;
     _rememberManualState();
-    stamp.rect = next;
+    _manualStamps = [
+      for (var i = 0; i < _manualStamps.length; i++)
+        if (i == index)
+          _manualStamps[i].copyWith(rect: next)
+        else
+          _manualStamps[i],
+    ];
     notifyListeners();
   }
 
   void resizeManualStamp(String id, Offset delta) {
     if (_disposed || _busy) return;
-    final stamp = _findManualStamp(id);
-    if (stamp == null) return;
-    final rect = stamp.rect;
+    final index = _manualIndexOf(id);
+    if (index < 0) return;
+    final rect = _manualStamps[index].rect;
     final width = (rect.width + delta.dx)
         .clamp(.05, 1.0 - rect.left)
         .toDouble();
@@ -335,13 +360,19 @@ class StampController extends ChangeNotifier {
     final next = NormalizedRect(rect.left, rect.top, width, height);
     if (next == rect) return;
     _rememberManualState();
-    stamp.rect = next;
+    _manualStamps = [
+      for (var i = 0; i < _manualStamps.length; i++)
+        if (i == index)
+          _manualStamps[i].copyWith(rect: next)
+        else
+          _manualStamps[i],
+    ];
     notifyListeners();
   }
 
   void removeManualStamp(String id) {
     if (_disposed || _busy) return;
-    if (_findManualStamp(id) == null) return;
+    if (_manualIndexOf(id) < 0) return;
     _rememberManualState();
     _manualStamps = _manualStamps.where((stamp) => stamp.id != id).toList();
     notifyListeners();
@@ -354,6 +385,22 @@ class StampController extends ChangeNotifier {
     _manualStamps = _copyManualStamps(snapshot);
     _manualUndoSnapshot = null;
     notifyListeners();
+  }
+
+  /// Disables all automatic suggestions (e.g. face candidates the user
+  /// rejected). Manual stamps are untouched. Export then covers only the
+  /// remaining enabled regions plus manual stamps.
+  void clearAutomaticDetections() {
+    if (_disposed || _busy) return;
+    if (_detections.isEmpty) return;
+    var changed = false;
+    for (final detection in _detections) {
+      if (detection.isEnabled) {
+        detection.isEnabled = false;
+        changed = true;
+      }
+    }
+    if (changed) notifyListeners();
   }
 
   void reset() {
@@ -375,7 +422,18 @@ class StampController extends ChangeNotifier {
     if (_busy) return ExportResult.busy;
     final bytes = _bytes;
     final stamps = this.stamps;
-    if (bytes == null || stamps.isEmpty) return ExportResult.unavailable;
+    final imageSize = _imageSize;
+    if (bytes == null || stamps.isEmpty || imageSize == null) {
+      return ExportResult.unavailable;
+    }
+    // Fail fast before allocating a full-res pixel buffer on low-memory
+    // devices. The exporter re-validates the same bound after decode.
+    if (imageSize.width <= 0 ||
+        imageSize.height <= 0 ||
+        imageSize.width >
+            const RedactionExporter().maxPixels ~/ imageSize.height) {
+      return ExportResult.failed;
+    }
 
     final token = _generation;
     _busy = true;
@@ -384,7 +442,7 @@ class StampController extends ChangeNotifier {
       final output = await exporter(bytes, stamps);
       final saved = await saver.save(
         output,
-        fileName: 'privacy-stamped-${_fileName ?? 'image'}.png',
+        fileName: 'privacy-stamped-${sanitizeExportBasename(_fileName)}.png',
       );
       if (!_isCurrent(token)) return ExportResult.stale;
       if (!saved) return ExportResult.cancelled;
@@ -424,12 +482,15 @@ class StampController extends ChangeNotifier {
       ),
   ];
 
-  Stamp? _findManualStamp(String id) {
-    for (final stamp in _manualStamps) {
-      if (stamp.id == id) return stamp;
+  int _manualIndexOf(String id) {
+    for (var i = 0; i < _manualStamps.length; i++) {
+      if (_manualStamps[i].id == id) return i;
     }
-    return null;
+    return -1;
   }
+
+  String _nextManualId() =>
+      'manual-${DateTime.now().microsecondsSinceEpoch}-${_manualIdSeq++}';
 
   bool _isCurrent(int token) => !_disposed && token == _generation;
 

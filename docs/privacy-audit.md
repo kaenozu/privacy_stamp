@@ -66,3 +66,47 @@ telemetry, upload, or remote-inference code. Confirm that the exported bytes
 are re-decoded locally and that the metadata/pixel tests in `test/` run on the
 same commit. If an environment prevents a check, record the exact command and
 reason as `NOT RUN`; do not infer a pass from a successful compile.
+
+## Face detection adapter notes
+
+`MlKitFaceDetector` runs Google ML Kit face detection on-device (Android/iOS
+via the bundled `com.google.mlkit:face-detection` model; inference sends no
+image bytes anywhere: the adapter builds an NV21 `InputImage` from a
+downscaled oriented copy in memory and maps boxes back through normalized
+coordinates.
+
+Caveats for the release gate:
+
+- First use may trigger a Play Services model download by the OS, outside the
+  app's own network code. The app manifest still declares no `INTERNET`;
+  verify the merged manifest on the candidate APK/AAB as before.
+- Detection is a hint, not coverage: false negatives remain possible, so the
+  mandatory manual-review dialog stays. The UI offers one-tap clearing of
+  automatic masks (`自動マスクを消す`).
+- Web/desktop builds compile the adapter but always yield zero candidates
+  (guarded `kIsWeb` + fail-open `try/catch`), so manual masking is the only
+  path there.
+
+## Verified 2026-09-09 (local Pixel_6_API_35 emulator, uncommitted work)
+
+- Release APK (`PRIVACY_STAMP_ALLOW_DEBUG_RELEASE_SIGNING=1` smoke) dumped
+  with `aapt2 dump xmltree`: no `INTERNET`, no `ACCESS_NETWORK_STATE`, no
+  `usesCleartextTraffic`. Remaining permissions are `BIND_JOB_SERVICE`
+  (telemetry transport's own scheduler, inert without network) and `DUMP`
+  (standard Flutter profile-install receiver guard). ML Kit components are
+  all `exported=false`; the only exported receiver is the standard Flutter
+  `ProfileInstallReceiver` behind the `DUMP` permission.
+- `INTERNET`/`ACCESS_NETWORK_STATE` arrive via transitive
+  `datatransport-backend-cct`/`transport-runtime` AARs and are stripped with
+  `tools:node="remove"` in `android/app/src/main/AndroidManifest.xml`.
+  (The debug manifest keeps its own `INTERNET` for hot reload; the gate
+  applies to release artifacts.)
+- Release builds run R8 (Flutter Gradle plugin forces `isMinifyEnabled`).
+  Without keeps, face detection NPEs inside obfuscated vision internals
+  (debug worked, release failed). `android/app/proguard-rules.pro` keeps
+  `com.google.mlkit.**`, `com.google.android.gms.internal.mlkit_vision**`,
+  and the Flutter bridge packages. Do not delete that file.
+- Release-mode detection on-device (standard face photo): 1 face found and
+  exported to PNG. App-UID `netstats` counters showed zero delta across the
+  detection+export run (pre-existing ~2KB tx predates the removal and matches
+  debug-run telemetry attempts).
