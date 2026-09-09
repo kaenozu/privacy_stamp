@@ -109,6 +109,8 @@ Uint8List _encodeRedaction(Map<String, Object> payload) {
     canvasSize: Size(oriented.width.toDouble(), oriented.height.toDouble()),
   );
 
+  // Empty mask list is allowed here for transparent re-encode tests.
+  // The controller blocks zero-mask export via ExportResult.unavailable.
   final masks = payload['masks']! as List<Object>;
   for (final rawMask in masks) {
     final mask = rawMask as Map<Object?, Object?>;
@@ -140,6 +142,7 @@ Uint8List _encodeRedaction(Map<String, Object> payload) {
     expectedWidth: oriented.width,
     expectedHeight: oriented.height,
   );
+  _validateNoPrivacyChunks(output);
   return output;
 }
 
@@ -215,5 +218,25 @@ void _validatePngHeader(
   final height = header.getUint32(20, Endian.big);
   if (width != expectedWidth || height != expectedHeight) {
     throw const FormatException('PNGを書き出せませんでした');
+  }
+}
+
+/// Fail-closed scan for ancillary chunks that could carry EXIF/GPS, ICC,
+/// or text payloads (eXIf/tEXt/iTXt/zTXt/iCCP). pHYs/sBIT are tolerated
+/// because the `image` encoder may emit dimensional chunks without user data.
+void _validateNoPrivacyChunks(Uint8List output) {
+  const forbidden = {'eXIf', 'tEXt', 'iTXt', 'zTXt', 'iCCP'};
+  final data = ByteData.sublistView(output);
+  // Skip 8-byte signature + IHDR chunk (8 + 4 + 4 + 13 + 4 = 33 bytes).
+  var offset = 33;
+  while (offset + 8 <= output.lengthInBytes) {
+    final length = data.getUint32(offset, Endian.big);
+    if (length > output.lengthInBytes) break;
+    final type = String.fromCharCodes(output.sublist(offset + 4, offset + 8));
+    if (forbidden.contains(type)) {
+      throw const FormatException('PNGにメタデータが残っています');
+    }
+    if (type == 'IEND') return;
+    offset += 12 + length;
   }
 }

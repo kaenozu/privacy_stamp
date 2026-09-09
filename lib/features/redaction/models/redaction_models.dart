@@ -50,16 +50,23 @@ class RecognizedTextRegion {
 }
 
 class Stamp {
-  Stamp({
+  const Stamp({
     required this.id,
     required this.rect,
     this.kind = 'black',
     this.isAutomatic = false,
   });
   final String id;
-  NormalizedRect rect;
-  String kind;
+  final NormalizedRect rect;
+  final String kind;
   final bool isAutomatic;
+
+  Stamp copyWith({NormalizedRect? rect, String? kind}) => Stamp(
+    id: id,
+    rect: rect ?? this.rect,
+    kind: kind ?? this.kind,
+    isAutomatic: isAutomatic,
+  );
 }
 
 abstract interface class FaceRegionDetector {
