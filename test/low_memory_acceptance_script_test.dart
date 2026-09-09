@@ -46,15 +46,22 @@ void main() {
     ).readAsStringSync();
     expect(
       integrationTest,
-      contains("package:flutter_driver/driver_extension.dart"),
+      isNot(contains("package:flutter_driver/driver_extension.dart")),
       reason:
-          'flutter drive requires the driver extension in the test entry point.',
+          'integration_test must own the binding; the legacy flutter_driver '
+          'extension conflicts with its bootstrap path.',
     );
     expect(
       integrationTest,
-      contains('enableFlutterDriverExtension();'),
+      isNot(contains('enableFlutterDriverExtension();')),
       reason:
-          'The driver extension must be enabled before integration bootstrap.',
+          'flutter drive + integration_test does not require the legacy '
+          'driver extension in the test entry point.',
+    );
+    expect(
+      integrationTest,
+      contains('IntegrationTestWidgetsFlutterBinding.ensureInitialized();'),
+      reason: 'The integration_test binding must initialize the test entry.',
     );
     expect(
       integrationTest,
