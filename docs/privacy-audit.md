@@ -67,7 +67,14 @@ are re-decoded locally and that the metadata/pixel tests in `test/` run on the
 same commit. If an environment prevents a check, record the exact command and
 reason as `NOT RUN`; do not infer a pass from a successful compile.
 
-## Face detection adapter notes
+## Face/text detection adapter notes
+
+`MlKitTextDetector` runs Google ML Kit text recognition on-device
+(Japanese script, line-level boxes fed to the rule engine; inference sends
+no image bytes anywhere; 2048px downscaled oriented NV21 copy, normalized
+back-mapping, fail-open `[]`). The same Play Services model-download and
+`kIsWeb` zero-candidate caveats as face apply; text remains a hint and the
+mandatory manual-review dialog stays.
 
 `MlKitFaceDetector` runs Google ML Kit face detection on-device (Android/iOS
 via the bundled `com.google.mlkit:face-detection` model; inference sends no

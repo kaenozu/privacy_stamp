@@ -11,6 +11,9 @@ This document records the repository state, not a production readiness claim.
 - On-device ML Kit face detection on native platforms (fast mode, downscaled
   oriented copy, normalized back-mapping, padded boxes), merged with rule-engine
   hits and exported as automatic stamps with a one-tap clear control.
+- On-device ML Kit text recognition on native platforms (Japanese script,
+  downscaled oriented copy, line-level normalized regions fed to the
+  rule engine for email/phone/postal/card/coordinate/label hits).
 - Pure Dart rules for email, Japanese/international phone, postal-code review
   candidates, Luhn-valid card candidates, coordinates, labelled values, and an
   all-OCR-region contract for future detector adapters.
@@ -25,11 +28,10 @@ This document records the repository state, not a production readiness claim.
 
 ## Not implemented
 
-- Android ML Kit OCR and barcode adapters, Web MediaPipe face/OCR adapters,
+- Android ML Kit barcode adapter, Web MediaPipe face/OCR adapters,
   Tesseract.js, and ZXing local bundled adapters.
-- Automatic OCR/barcode execution: `DetectionService._localTextDetector`
-  currently returns no recognized text regions.
-- Automatic face/barcode/OCR coverage, or a
+- Automatic barcode execution: no `CodeRegionDetector` is wired yet.
+- Automatic face/text/barcode coverage, or a
   guarantee that all sensitive content is hidden.
 - Android share-intent receiver and system share-out.
 - Google Play Billing purchase/restore, product ID, entitlement state, or an
