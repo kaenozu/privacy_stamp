@@ -2,7 +2,6 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_driver/driver_extension.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:privacy_stamp/features/redaction/export/redaction_exporter.dart';
@@ -13,8 +12,6 @@ import 'package:privacy_stamp/main.dart';
 import '../tool/acceptance/image_metadata.dart';
 
 void main() {
-  enableFlutterDriverExtension();
-  _bootstrap('main-enter');
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   _bootstrap('binding-ready');
 
