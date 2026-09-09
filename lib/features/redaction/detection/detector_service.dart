@@ -1,5 +1,6 @@
 import '../models/redaction_models.dart';
 import '../rules/sensitive_rules.dart';
+import 'barcode_detector.dart';
 import 'face_detector.dart';
 import 'text_detector.dart';
 
@@ -8,14 +9,15 @@ class DetectionService {
     SensitiveRuleEngine? rules,
     FaceRegionDetector? faceDetector,
     TextRegionDetector? textDetector,
-    this._codeDetector,
+    CodeRegionDetector? codeDetector,
   }) : _rules = rules ?? SensitiveRuleEngine(),
        _faceDetector = faceDetector ?? const NoopFaceDetector(),
-       _textDetector = textDetector ?? const NoopTextDetector();
+       _textDetector = textDetector ?? const NoopTextDetector(),
+       _codeDetector = codeDetector ?? const NoopCodeDetector();
   final SensitiveRuleEngine _rules;
   final FaceRegionDetector _faceDetector;
   final TextRegionDetector _textDetector;
-  final CodeRegionDetector? _codeDetector;
+  final CodeRegionDetector _codeDetector;
 
   Future<List<DetectionRegion>> inspect(
     Uint8ListImageInput input, {
@@ -41,13 +43,10 @@ class DetectionService {
     }
 
     List<DetectionRegion> codes = const [];
-    final codeDetector = _codeDetector;
-    if (codeDetector != null) {
-      try {
-        codes = await codeDetector.detect(input);
-      } catch (_) {
-        codes = const [];
-      }
+    try {
+      codes = await _codeDetector.detect(input);
+    } catch (_) {
+      codes = const [];
     }
 
     return [...faces, ...codes, ...textHits];

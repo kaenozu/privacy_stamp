@@ -14,6 +14,9 @@ This document records the repository state, not a production readiness claim.
 - On-device ML Kit text recognition on native platforms (Japanese script,
   downscaled oriented copy, line-level normalized regions fed to the
   rule engine for email/phone/postal/card/coordinate/label hits).
+- On-device ML Kit barcode scanning on native platforms (all formats,
+  downscaled oriented copy, normalized back-mapping, padded boxes,
+  every value treated as sensitive).
 - Pure Dart rules for email, Japanese/international phone, postal-code review
   candidates, Luhn-valid card candidates, coordinates, labelled values, and an
   all-OCR-region contract for future detector adapters.
@@ -28,9 +31,8 @@ This document records the repository state, not a production readiness claim.
 
 ## Not implemented
 
-- Android ML Kit barcode adapter, Web MediaPipe face/OCR adapters,
-  Tesseract.js, and ZXing local bundled adapters.
-- Automatic barcode execution: no `CodeRegionDetector` is wired yet.
+- Web MediaPipe face/OCR adapters, Tesseract.js, and ZXing local bundled
+  adapters.
 - Automatic face/text/barcode coverage, or a
   guarantee that all sensitive content is hidden.
 - Android share-intent receiver and system share-out.
