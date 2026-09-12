@@ -1,0 +1,71 @@
+name: patch low-memory fixture preflight
+
+on:
+  push:
+    branches:
+      - fix/17-emulator-ram-checkout
+
+permissions:
+  contents: write
+
+jobs:
+  patch-and-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: fix/17-emulator-ram-checkout
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - run: flutter pub get
+      - name: Move fixture metadata inspection out of the constrained guest
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          integration = Path('integration_test/synthetic_low_memory_acceptance_test.dart')
+          text = integration.read_text()
+          replacements = [
+              (
+                  '''      final sourceInfo = fixture.metadata;\n      final saver = _CapturingSaver();\n      final controller = _controller(\n        picker: _FixturePicker(\n          source,\n          PixelSize(sourceInfo.width, sourceInfo.height),\n        ),\n''',
+                  '''      final sourceSize = fixture.imageSize;\n      final saver = _CapturingSaver();\n      final controller = _controller(\n        picker: _FixturePicker(source, sourceSize),\n''',
+              ),
+              (
+                  '''      expect(outputInfo.pixels, sourceInfo.pixels);\n''',
+                  '''      expect(outputInfo.pixels, sourceSize.width * sourceSize.height);\n''',
+              ),
+              (
+                  '''      final sourceInfo = fixture.metadata;\n      final controller = _controller(\n        picker: _FixturePicker(\n          fixture.bytes,\n          PixelSize(sourceInfo.width, sourceInfo.height),\n        ),\n''',
+                  '''      final controller = _controller(\n        picker: _FixturePicker(fixture.bytes, fixture.imageSize),\n''',
+              ),
+              (
+                  '''Future<({Uint8List bytes, AcceptanceImageMetadata metadata})> _fixture() async {\n  final fixture = await rootBundle.load(\n    'test/fixtures/synthetic-high-res-avd.jpg',\n  );\n  final source = fixture.buffer.asUint8List();\n  final sourceInfo = await _inspectBytes(source, 'synthetic-input.jpg');\n  expect(sourceInfo.format, 'JPEG');\n  expect(sourceInfo.pixels, greaterThanOrEqualTo(40000000));\n  expect(sourceInfo.gpsPresent, isTrue);\n  return (bytes: source, metadata: sourceInfo);\n}\n''',
+                  '''Future<({Uint8List bytes, PixelSize imageSize})> _fixture() async {\n  final fixture = await rootBundle.load(\n    'test/fixtures/synthetic-high-res-avd.jpg',\n  );\n  final source = fixture.buffer.asUint8List();\n  expect(source, isNotEmpty);\n  return (bytes: source, imageSize: const PixelSize(6000, 8000));\n}\n''',
+              ),
+          ]
+          for old, new in replacements:
+              if text.count(old) != 1:
+                  raise SystemExit(f'integration replacement count={text.count(old)} for {old[:60]!r}')
+              text = text.replace(old, new)
+          integration.write_text(text)
+
+          script = Path('.github/scripts/run-low-memory-acceptance.sh')
+          text = script.read_text()
+          anchor = '''preflight adb-devices adb devices -l\npreflight getprop adb shell getprop\npreflight meminfo adb shell cat /proc/meminfo\n\n'''
+          insertion = '''preflight adb-devices adb devices -l\npreflight getprop adb shell getprop\npreflight meminfo adb shell cat /proc/meminfo\n\nfixture_probe=.ci-logs/android/preflight-synthetic-fixture.json\nif ! dart run tool/acceptance/image_metadata_probe.dart \\\n  test/fixtures/synthetic-high-res-avd.jpg > "$fixture_probe" 2>&1; then\n  echo 'Synthetic fixture metadata probe failed on the host.' | tee "$report"\n  exit 47\nfi\nif ! python3 - "$fixture_probe" <<'PYFIXTURE'\nimport json\nimport sys\n\nwith open(sys.argv[1], encoding='utf-8') as handle:\n    metadata = json.load(handle)\nexpected = {\n    'format': 'JPEG',\n    'width': 6000,\n    'height': 8000,\n    'pixels': 48000000,\n    'gpsPresent': True,\n}\nfor key, value in expected.items():\n    if metadata.get(key) != value:\n        raise SystemExit(f'fixture {key}={metadata.get(key)!r}, expected {value!r}')\nPYFIXTURE\nthen\n  echo 'Synthetic fixture does not satisfy the exact 48MP/GPS acceptance contract.' | tee "$report"\n  exit 48\nfi\nprintf 'Synthetic fixture preflight passed on host: 6000x8000 JPEG with GPS metadata.\\n' \\\n  | tee -a .ci-logs/android/progress.log\n\n'''
+          if text.count(anchor) != 1:
+              raise SystemExit(f'preflight anchor count={text.count(anchor)}')
+          script.write_text(text.replace(anchor, insertion))
+          PY
+          dart format integration_test/synthetic_low_memory_acceptance_test.dart
+      - run: flutter test test/synthetic_fixture_test.dart test/low_memory_acceptance_script_test.dart
+      - run: flutter analyze
+      - run: git diff --check
+      - name: Commit focused acceptance-harness fix
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add integration_test/synthetic_low_memory_acceptance_test.dart .github/scripts/run-low-memory-acceptance.sh
+          git commit -m "test: preflight high-res fixture outside low-memory guest"
+          git push origin HEAD:fix/17-emulator-ram-checkout
