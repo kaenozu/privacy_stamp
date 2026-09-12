@@ -3,9 +3,9 @@ set -euo pipefail
 
 # CI-only transport shim for the 2 GiB API 35 AVD.
 # The acceptance assertions and the 12-minute A-C wall clock remain in
-# run-low-memory-acceptance.sh unchanged. This wrapper only gives Android's
-# post-boot services time to settle, makes APK installation less stressful on
-# the low-memory guest, disables DDS for flutter drive on the emulator, and
+# run-low-memory-acceptance.sh unchanged. This wrapper only waits for Android's
+# post-boot broadcast work to become idle, makes APK installation less stressful
+# on the low-memory guest, disables DDS for flutter drive on the emulator, and
 # captures logcat before the integration test reaches A:start so bootstrap
 # failures remain diagnosable.
 # Flutter's integration-test guidance recommends --no-dds for mobile devices
@@ -75,8 +75,18 @@ export REAL_TIMEOUT="$real_timeout"
 export REAL_FLUTTER="$real_flutter"
 export PATH="$shim_dir:$PATH"
 
-printf 'Low-memory AVD boot completed; allowing post-boot services to settle for 90 seconds.\n'
-sleep 90
+# sys.boot_completed=1 only means Android reached the boot-complete phase. On
+# the 2 GiB Google APIs image, queued PRE_BOOT_COMPLETED/BOOT_COMPLETED receivers
+# can continue for many minutes and cause system-wide ANRs while the acceptance
+# app starts. Wait on ActivityManager's own broadcast-idle barrier instead of a
+# fixed sleep. Keep this infrastructure wait bounded and fail before acceptance
+# if the guest never stabilizes; the app acceptance wall clock remains 12m.
+printf 'Low-memory AVD boot completed; waiting for Android broadcast queues to become idle.\n'
+if ! "$real_timeout" 900s "$real_adb" shell am wait-for-broadcast-idle; then
+  printf 'Android broadcast queues did not become idle within 900 seconds.\n' >&2
+  exit 1
+fi
+printf 'Android broadcast queues are idle; starting acceptance.\n'
 
 mkdir -p .ci-logs/android
 bootstrap_logcat=.ci-logs/android/bootstrap-logcat.txt
