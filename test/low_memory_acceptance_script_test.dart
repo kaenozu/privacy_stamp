@@ -111,7 +111,8 @@ void main() {
       expect(
         ciWrapper,
         isNot(contains('sleep 90')),
-        reason: 'A fixed post-boot delay was proven insufficient on the 2 GiB AVD.',
+        reason:
+            'A fixed post-boot delay was proven insufficient on the 2 GiB AVD.',
       );
       expect(
         ciWrapper,
