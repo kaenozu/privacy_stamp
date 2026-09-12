@@ -99,7 +99,11 @@ jobs:
     # Use GitHub's standard Intel macOS runner so the Android emulator can use
     # host virtualization without weakening the x86_64 / 1-2 GiB acceptance.
     runs-on: macos-15-intel
-    timeout-minutes: 45
+    # The 2 GiB Google APIs image can spend close to 15 minutes draining first-
+    # boot broadcasts after sys.boot_completed=1. This job timeout covers that
+    # bounded infrastructure stabilization plus the unchanged 12-minute A-C
+    # acceptance wall clock; it does not extend the app acceptance itself.
+    timeout-minutes: 65
     steps:
       - uses: actions/checkout@v4
         with:
