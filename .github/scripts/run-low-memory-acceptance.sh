@@ -149,6 +149,36 @@ preflight adb-devices adb devices -l
 preflight getprop adb shell getprop
 preflight meminfo adb shell cat /proc/meminfo
 
+fixture_probe=.ci-logs/android/preflight-synthetic-fixture.json
+if ! dart run tool/acceptance/image_metadata_probe.dart \
+  test/fixtures/synthetic-high-res-avd.jpg > "$fixture_probe" 2>&1; then
+  echo 'Synthetic fixture metadata probe failed on the host.' | tee "$report"
+  exit 47
+fi
+if ! python3 - "$fixture_probe" <<'PYFIXTURE'
+import json
+import sys
+
+with open(sys.argv[1], encoding='utf-8') as handle:
+    metadata = json.load(handle)
+expected = {
+    'format': 'JPEG',
+    'width': 6000,
+    'height': 8000,
+    'pixels': 48000000,
+    'gpsPresent': True,
+}
+for key, value in expected.items():
+    if metadata.get(key) != value:
+        raise SystemExit(f'fixture {key}={metadata.get(key)!r}, expected {value!r}')
+PYFIXTURE
+then
+  echo 'Synthetic fixture does not satisfy the exact 48MP/GPS acceptance contract.' | tee "$report"
+  exit 48
+fi
+printf 'Synthetic fixture preflight passed on host: 6000x8000 JPEG with GPS metadata.\n' \
+  | tee -a .ci-logs/android/progress.log
+
 api=$(adb shell getprop ro.build.version.sdk | tr -d '\r')
 abi=$(adb shell getprop ro.product.cpu.abi | tr -d '\r')
 if [[ "$api" != "35" ]]; then

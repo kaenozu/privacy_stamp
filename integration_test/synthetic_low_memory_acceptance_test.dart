@@ -22,13 +22,10 @@ void main() {
       final fixture = await _fixture();
       _milestone('A:fixture-inspected');
       final source = fixture.bytes;
-      final sourceInfo = fixture.metadata;
+      final sourceSize = fixture.imageSize;
       final saver = _CapturingSaver();
       final controller = _controller(
-        picker: _FixturePicker(
-          source,
-          PixelSize(sourceInfo.width, sourceInfo.height),
-        ),
+        picker: _FixturePicker(source, sourceSize),
         saver: saver,
       );
 
@@ -88,7 +85,7 @@ void main() {
       final outputInfo = await _inspectBytes(output!, 'synthetic-output.png');
       _milestone('A:output-inspected');
       expect(outputInfo.format, 'PNG');
-      expect(outputInfo.pixels, sourceInfo.pixels);
+      expect(outputInfo.pixels, sourceSize.width * sourceSize.height);
       expect(outputInfo.gpsPresent, isFalse);
       expect(outputInfo.metadataContainerPresent, isFalse);
       expect(tester.takeException(), isNull);
@@ -123,12 +120,8 @@ void main() {
     (tester) async {
       _milestone('C:start');
       final fixture = await _fixture();
-      final sourceInfo = fixture.metadata;
       final controller = _controller(
-        picker: _FixturePicker(
-          fixture.bytes,
-          PixelSize(sourceInfo.width, sourceInfo.height),
-        ),
+        picker: _FixturePicker(fixture.bytes, fixture.imageSize),
         saver: _CapturingSaver(),
       );
       await tester.pumpWidget(
@@ -182,16 +175,13 @@ StampController _controller({
   history: const _InMemoryHistory(),
 );
 
-Future<({Uint8List bytes, AcceptanceImageMetadata metadata})> _fixture() async {
+Future<({Uint8List bytes, PixelSize imageSize})> _fixture() async {
   final fixture = await rootBundle.load(
     'test/fixtures/synthetic-high-res-avd.jpg',
   );
   final source = fixture.buffer.asUint8List();
-  final sourceInfo = await _inspectBytes(source, 'synthetic-input.jpg');
-  expect(sourceInfo.format, 'JPEG');
-  expect(sourceInfo.pixels, greaterThanOrEqualTo(40000000));
-  expect(sourceInfo.gpsPresent, isTrue);
-  return (bytes: source, metadata: sourceInfo);
+  expect(source, isNotEmpty);
+  return (bytes: source, imageSize: const PixelSize(6000, 8000));
 }
 
 Future<AcceptanceImageMetadata> _inspectBytes(
