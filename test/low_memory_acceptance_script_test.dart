@@ -98,8 +98,20 @@ void main() {
       );
       expect(
         ciWrapper,
-        contains('sleep 90'),
-        reason: 'API 35 post-boot services must settle before package install.',
+        contains(r'"$real_adb" shell am wait-for-broadcast-idle'),
+        reason:
+            'API 35 acceptance must start after Android boot broadcasts are idle, '
+            'not after an arbitrary fixed sleep.',
+      );
+      expect(
+        ciWrapper,
+        contains(r'"$real_timeout" 900s'),
+        reason: 'Post-boot stabilization must remain bounded.',
+      );
+      expect(
+        ciWrapper,
+        isNot(contains('sleep 90')),
+        reason: 'A fixed post-boot delay was proven insufficient on the 2 GiB AVD.',
       );
       expect(
         ciWrapper,
