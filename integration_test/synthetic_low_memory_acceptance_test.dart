@@ -25,8 +25,9 @@ void main() {
       final sourceSize = fixture.imageSize;
       final saver = _CapturingSaver();
       final controller = _controller(
-        picker: _FixturePicker(source, sourceSize),
+        picker: _FixturePicker(source, sourceSize, 'A'),
         saver: saver,
+        diagnosticLabel: 'A',
       );
 
       await tester.pumpWidget(
@@ -35,7 +36,15 @@ void main() {
       _milestone('A:widget-pumped');
       await tester.tap(find.widgetWithText(FilledButton, '画像を選ぶ'));
       _milestone('A:picker-tapped');
-      await _pumpBounded(tester, frames: 50);
+      _milestone(
+        'A:post-tap-state hasImage=${controller.hasImage} '
+        'busy=${controller.isBusy} size=${controller.imageSize}',
+      );
+      await _pumpBounded(
+        tester,
+        frames: 50,
+        diagnosticLabel: 'A:image-selection',
+      );
       _milestone('A:image-selection-settled');
 
       expect(controller.imageSize, const PixelSize(6000, 8000));
@@ -97,8 +106,9 @@ void main() {
   testWidgets('B: picker cancellation leaves the app usable', (tester) async {
     _milestone('B:start');
     final controller = _controller(
-      picker: const _NoopPicker(),
+      picker: const _NoopPicker('B'),
       saver: _CapturingSaver(),
+      diagnosticLabel: 'B',
     );
     await tester.pumpWidget(
       MaterialApp(home: StampHomePage(controller: controller)),
@@ -121,8 +131,9 @@ void main() {
       _milestone('C:start');
       final fixture = await _fixture();
       final controller = _controller(
-        picker: _FixturePicker(fixture.bytes, fixture.imageSize),
+        picker: _FixturePicker(fixture.bytes, fixture.imageSize, 'C'),
         saver: _CapturingSaver(),
+        diagnosticLabel: 'C',
       );
       await tester.pumpWidget(
         MaterialApp(home: StampHomePage(controller: controller)),
@@ -167,9 +178,10 @@ void _milestone(String name) {
 StampController _controller({
   required ImagePickerGateway picker,
   required ImageSaverGateway saver,
+  required String diagnosticLabel,
 }) => StampController(
   picker: picker,
-  detector: const _NoopDetector(),
+  detector: _NoopDetector(diagnosticLabel),
   exporter: const RedactionExporter().encodeAsync,
   saver: saver,
   history: const _InMemoryHistory(),
@@ -200,9 +212,27 @@ Future<AcceptanceImageMetadata> _inspectBytes(
   }
 }
 
-Future<void> _pumpBounded(WidgetTester tester, {int frames = 30}) async {
+Future<void> _pumpBounded(
+  WidgetTester tester, {
+  int frames = 30,
+  String? diagnosticLabel,
+}) async {
+  if (diagnosticLabel != null) {
+    _milestone('$diagnosticLabel:pump-start frames=$frames');
+  }
   for (var i = 0; i < frames; i++) {
+    final traceFrame = diagnosticLabel != null &&
+        (i < 3 || i == 4 || i == 9 || i == frames - 1);
+    if (traceFrame) {
+      _milestone('$diagnosticLabel:frame-${i + 1}-start');
+    }
     await tester.pump(const Duration(milliseconds: 100));
+    if (traceFrame) {
+      _milestone('$diagnosticLabel:frame-${i + 1}-done');
+    }
+  }
+  if (diagnosticLabel != null) {
+    _milestone('$diagnosticLabel:pump-complete');
   }
 }
 
@@ -217,32 +247,49 @@ class _CapturingSaver implements ImageSaverGateway {
 }
 
 class _FixturePicker implements ImagePickerGateway {
-  const _FixturePicker(this.bytes, this.imageSize);
+  const _FixturePicker(this.bytes, this.imageSize, this.diagnosticLabel);
 
   final Uint8List bytes;
   final PixelSize imageSize;
+  final String diagnosticLabel;
 
   @override
-  Future<PickedImage?> pick() async => PickedImage(
-    bytes: bytes,
-    name: 'synthetic-high-res-avd.jpg',
-    imageSize: imageSize,
-  );
+  Future<PickedImage?> pick() async {
+    _milestone('$diagnosticLabel:picker-enter');
+    final picked = PickedImage(
+      bytes: bytes,
+      name: 'synthetic-high-res-avd.jpg',
+      imageSize: imageSize,
+    );
+    _milestone('$diagnosticLabel:picker-return');
+    return picked;
+  }
 }
 
 class _NoopPicker implements ImagePickerGateway {
-  const _NoopPicker();
+  const _NoopPicker(this.diagnosticLabel);
+
+  final String diagnosticLabel;
 
   @override
-  Future<PickedImage?> pick() async => null;
+  Future<PickedImage?> pick() async {
+    _milestone('$diagnosticLabel:picker-enter');
+    _milestone('$diagnosticLabel:picker-return-null');
+    return null;
+  }
 }
 
 class _NoopDetector implements DetectionGateway {
-  const _NoopDetector();
+  const _NoopDetector(this.diagnosticLabel);
+
+  final String diagnosticLabel;
 
   @override
-  Future<List<DetectionRegion>> inspect(Uint8ListImageInput input) async =>
-      const [];
+  Future<List<DetectionRegion>> inspect(Uint8ListImageInput input) async {
+    _milestone('$diagnosticLabel:detector-enter');
+    _milestone('$diagnosticLabel:detector-return');
+    return const [];
+  }
 }
 
 class _InMemoryHistory implements ExportHistoryGateway {
