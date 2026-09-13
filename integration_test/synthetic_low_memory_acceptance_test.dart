@@ -221,7 +221,8 @@ Future<void> _pumpBounded(
     _milestone('$diagnosticLabel:pump-start frames=$frames');
   }
   for (var i = 0; i < frames; i++) {
-    final traceFrame = diagnosticLabel != null &&
+    final traceFrame =
+        diagnosticLabel != null &&
         (i < 3 || i == 4 || i == 9 || i == frames - 1);
     if (traceFrame) {
       _milestone('$diagnosticLabel:frame-${i + 1}-start');
